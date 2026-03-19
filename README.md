@@ -38,8 +38,6 @@ code index.html
 # Rechtsklick → "Open with Live Server"
 ```
 
-Oder mit GitHub Pages (siehe unten).
-
 ## Technik
 
 - Einzelne HTML-Datei, kein Build-Schritt
