@@ -6,7 +6,7 @@
 export const de = {
   app: {
     title: "ManV Triage Simulator",
-    subtitle: "VOR-Sichtung · Algorithmus Region Hannover",
+    subtitle: "VOR-Sichtung",
     version: "Prototyp v0.1",
     badge: "Trainingsmodus",
   },
