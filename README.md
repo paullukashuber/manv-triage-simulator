@@ -1,16 +1,71 @@
-# React + Vite
+# ManV Triage Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> ⚠️ **Prototyp (v0.1)** – Dieses Projekt befindet sich in einer frühen Entwicklungsphase. Inhalte, Algorithmus-Logik und Darstellung können Fehler enthalten. Feedback und Fehlermeldungen sind willkommen – bitte als [Issue](../../issues) melden.
 
-Currently, two official plugins are available:
+Ein interaktiver, web-basierter Trainingssimulator für die **Patientensichtung beim Massenanfall von Verletzten (ManV)** nach dem **mSTaRT-Algorithmus**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Was ist das?
 
-## React Compiler
+Der Simulator ermöglicht es Helferinnen und Helfern im Rettungsdienst und Sanitätsdienst, den Sichtungsablauf bei einem Massenanfall von Verletzten interaktiv zu trainieren – ohne reale Patienten, ohne Aufbau einer ManV-Übung.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Aktuell implementiert:** VOR-Sichtung nach dem Algorithmus der Region Hannover.
 
-## Expanding the ESLint configuration
+## Status
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+🟡 **Prototyp v0.1** – Grundfunktionalität vorhanden, aber:
+- Fachliche Inhalte sind noch nicht abschließend geprüft
+- Es können Fehler in der Algorithmus-Logik auftreten
+- UI/UX wird noch überarbeitet
+- Szenarien werden noch erweitert
+
+## Features
+
+- Schritt-für-Schritt VOR-Sichtungsalgorithmus
+- 8 realistische Patientenszenarien (zufällige Reihenfolge)
+- Sofortfeedback nach abgeschlossener Sichtung mit Begründung
+- Fehleranalyse und Gesamtauswertung
+- Mobile-First Design (optimiert für Tablets und Smartphones)
+- Keine Installation nötig – läuft direkt im Browser
+
+## Schnellstart
+
+1. `index.html` herunterladen
+2. Im Browser öffnen – fertig.
+
+Alternativ mit VS Code Live Server:
+```
+code index.html
+# Rechtsklick → "Open with Live Server"
+```
+
+## Technik
+
+- Einzelne HTML-Datei, kein Build-Schritt
+- Vanilla HTML + CSS + JavaScript
+- Keine externen Abhängigkeiten
+- Kein Backend, keine Datenbank
+
+## Roadmap
+
+- [ ] Qualifikationswahl (SanH / RS / RA / NotSan)
+- [ ] Modus „Vollständige Sichtung" (ABCDE mit LSM-Entscheidungen)
+- [ ] Mehr Szenarien (Ziel: 15–20)
+- [ ] Übungsmodus ManV-Lage (mehrere Patienten mit Zeitdruck)
+- [ ] Lernkarten / Algorithmus-Referenz
+- [ ] PWA / Offline-Fähigkeit
+- [ ] Vieles mehr...
+
+## Fachlicher Hintergrund
+
+Der Simulator basiert auf:
+- **mSTaRT** (modified Simple Triage and Rapid Treatment)
+- Checkliste VOR-Sichtung, Algorithmus Region Hannover
+- Lebensrettende Sofortmaßnahmen (LSM-Karte)
+
+## Lizenz
+
+MIT – siehe [LICENSE](LICENSE).
+
+---
+
+> **Hinweis:** Dieses Tool dient ausschließlich zu Trainingszwecken und ersetzt keine zertifizierte Ausbildung. Bei Widersprüchen gilt immer das aktuellste offizielle Schulungsmaterial.
