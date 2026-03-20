@@ -1,24 +1,64 @@
-# Logs
-logs
+# ── Dependencies ──
+node_modules/
+
+# ── Build output ──
+dist/
+dist-ssr/
+build/
+
+# ── Vite ──
+*.local
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# ── Environment ──
+.env
+.env.*
+!.env.example
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# ── IDEs ──
+# VSCodium / VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains
+.idea/
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+Session.vim
+Sessionx.vim
+.netrwhist
+tags
+
+# ── Logs ──
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ── Package managers ──
+yarn.lock
+pnpm-lock.yaml
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# ── Testing ──
+coverage/
+*.lcov
+
+# ── Misc ──
+*.tsbuildinfo
+*.zip

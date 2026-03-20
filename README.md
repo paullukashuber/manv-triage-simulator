@@ -1,11 +1,11 @@
 # ManV Triage Simulator
 
-![Version](https://img.shields.io/badge/version-0.1-blue)
+![Version](https://img.shields.io/badge/version-0.2-blue)
 ![Status](https://img.shields.io/badge/status-prototype-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![GitHub Pages](https://img.shields.io/badge/demo-live-brightgreen?logo=github)
 
-> ⚠️ **Prototyp (v0.1)** – Dieses Projekt befindet sich in einer frühen Entwicklungsphase. Inhalte, Algorithmus-Logik und Darstellung können Fehler enthalten. Feedback und Fehlermeldungen sind willkommen – bitte als [Issue](../../issues) melden.
+> ⚠️ **Prototyp (v0.2)** – Dieses Projekt befindet sich in einer frühen Entwicklungsphase. Inhalte, Algorithmus-Logik und Darstellung können Fehler enthalten. Feedback und Fehlermeldungen sind willkommen – bitte als [Issue](../../issues) melden.
 
 Ein interaktiver, web-basierter Trainingssimulator für die **Patientensichtung beim Massenanfall von Verletzten (ManV)** nach dem **mSTaRT-Algorithmus**.
 
@@ -19,10 +19,9 @@ Der Simulator ermöglicht es Helferinnen und Helfern im Rettungsdienst und Sanit
 
 ## Status
 
-🟡 **Prototyp v0.1** – Grundfunktionalität vorhanden, aber:
+🟡 **Prototyp v0.2** – Grundfunktionalität vorhanden, aber:
 - Fachliche Inhalte sind noch nicht abschließend geprüft
 - Es können Fehler in der Algorithmus-Logik auftreten
-- UI/UX wird noch überarbeitet
 - Szenarien werden noch erweitert
 
 ## Features
@@ -31,39 +30,56 @@ Der Simulator ermöglicht es Helferinnen und Helfern im Rettungsdienst und Sanit
 - ✅ 8 realistische Patientenszenarien in zufälliger Reihenfolge
 - ✅ Feedback nach abgeschlossener Sichtung mit Begründung
 - ✅ Fehleranalyse und Gesamtauswertung
-- ✅ Mobile-First Design (optimiert für Tablets und Smartphones)
-- ✅ Keine Installation nötig – läuft direkt im Browser
+- ✅ Patientendaten durchgehend sichtbar während der Sichtung
+- ✅ Mobile-First Design mit Triage-Farbsystem
+- ✅ i18n-Vorbereitung (aktuell Deutsch, Englisch geplant)
 
 ## Schnellstart
 
 **Option 1 – Live-Demo:**
 Einfach die [GitHub Pages Demo](https://paullukashuber.github.io/manv-triage-simulator/) öffnen.
 
-**Option 2 – Lokal:**
+**Option 2 – Lokal entwickeln:**
 ```bash
 git clone https://github.com/PaulLukasHuber/manv-triage-simulator.git
 cd manv-triage-simulator
-# index.html im Browser öffnen – fertig.
+npm install
+npm run dev
 ```
 
-## Technik
+## Tech Stack
 
-| Aktuell (v0.1) | In Entwicklung (v0.2) |
+| Schicht | Technologie |
 |---|---|
-| Vanilla HTML/CSS/JS | React + Vite + Tailwind CSS |
-| Einzelne HTML-Datei | Modulare Komponentenstruktur |
-| Keine Abhängigkeiten | i18n-Vorbereitung (DE/EN) |
+| Framework | React 19 |
+| Build | Vite |
+| Styling | Tailwind CSS 4 |
+| State | useReducer (Custom Hook) |
+| Sprache | i18n-ready (src/i18n/) |
+| Deploy | GitHub Pages via GitHub Actions |
+
+## Projektstruktur
+
+```
+src/
+├── data/            Szenarien + Algorithmus-Schritte
+├── hooks/           useSimulator (zentrale State-Logik)
+├── screens/         5 Screen-Komponenten
+├── components/      9 wiederverwendbare UI-Komponenten
+├── i18n/            Sprachdateien (aktuell: Deutsch)
+└── utils/           Konstanten + Hilfsfunktionen
+```
 
 ## Roadmap
 
-- [ ] Migration auf React + Vite + Tailwind CSS
+- [ ] Mehr Szenarien (Ziel: 15–20)
 - [ ] Qualifikationswahl (SanH / RS / RA / NotSan)
 - [ ] Modus „Vollständige Sichtung" (ABCDE mit LSM-Entscheidungen)
-- [ ] Mehr Szenarien (Ziel: 15–20)
 - [ ] Übungsmodus ManV-Lage (mehrere Patienten mit Zeitdruck)
 - [ ] Lernkarten / Algorithmus-Referenz
 - [ ] PWA / Offline-Fähigkeit
 - [ ] Szenario-Editor für Ausbilder
+- [ ] Englische Übersetzung
 
 ## Fachlicher Hintergrund
 
