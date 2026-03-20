@@ -1,14 +1,5 @@
-/**
- * Application-wide constants.
- * Labels come from i18n – this file only holds structural/visual metadata.
- */
-
 export const VERSION = "0.1";
 
-/**
- * Triage category metadata.
- * `color` and `textColor` reference CSS custom properties defined in index.css.
- */
 export const CATEGORIES = {
   red: {
     id: "red",
@@ -26,7 +17,7 @@ export const CATEGORIES = {
     id: "white",
     color: "var(--color-white)",
     textColor: "#333333",
-    border: "#cccccc",
+    border: "#aaaaaa",
     cssClass: "category-white",
   },
   dead: {
@@ -37,21 +28,17 @@ export const CATEGORIES = {
   },
 };
 
-/**
- * ABCDE step badge color mapping.
- * Maps badgeType from triageSteps to Tailwind-compatible styles.
- */
 export const BADGE_STYLES = {
   a: { bg: "bg-[#CC0000]", text: "text-white" },
-  b: { bg: "bg-[#e07000]", text: "text-white" },
-  c: { bg: "bg-[#b5179e]", text: "text-white" },
-  d: { bg: "bg-[#7209b7]", text: "text-white" },
-  info: { bg: "bg-[#4cc9f0]", text: "text-white" },
+  b: { bg: "bg-[#d97706]", text: "text-white" },
+  c: { bg: "bg-[#9333ea]", text: "text-white" },
+  d: { bg: "bg-[#6d28d9]", text: "text-white" },
+  info: {
+    bg: "bg-[var(--color-bg-elevated)]",
+    text: "text-[var(--color-accent)]",
+  },
 };
 
-/**
- * Screen identifiers used by the simulator state machine.
- */
 export const SCREENS = {
   START: "start",
   SCENARIO_INTRO: "scenarioIntro",
