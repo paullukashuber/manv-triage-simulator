@@ -1,8 +1,9 @@
 import { useReducer, useCallback } from "react";
 import { scenarios } from "../data/scenarios";
 import { triageSteps, FALLBACK_CATEGORY } from "../data/triageSteps";
-import { SCREENS } from "../utils/constants";
+import { SCREENS, SCENARIOS_PER_SESSION } from "../utils/constants";
 import { shuffle } from "../utils/helpers";
+
 
 // ── Initial State ──
 
@@ -43,14 +44,16 @@ const ACTIONS = {
 function simulatorReducer(state, action) {
   switch (action.type) {
     case ACTIONS.START_TRAINING: {
-      const pool = shuffle(scenarios);
-      const first = pool[0];
-      const remaining = pool.slice(1);
-
+      const shuffled = shuffle(scenarios);
+      const selected = shuffled.slice(0, SCENARIOS_PER_SESSION);
+      const first = selected[0];
+      const remaining = selected.slice(1);
+ 
       return {
         ...initialState,
         screen: SCREENS.SCENARIO_INTRO,
         pool: remaining,
+        totalScenarios: selected.length,
         scenario: first,
         scenarioIndex: 1,
         results: [],

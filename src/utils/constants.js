@@ -1,4 +1,6 @@
-export const VERSION = "0.1";
+export const VERSION = "0.2.1";
+
+export const SCENARIOS_PER_SESSION = 10;
 
 export const CATEGORIES = {
   red: {

@@ -24,7 +24,7 @@ export const de = {
       "Durchlaufe den Vorsichtungsalgorithmus Schritt für Schritt. Die Sichtung endet beim ersten zutreffenden Punkt – pro Patient nur 1 Entscheidung.",
     button: "Training starten",
     features: [
-      "18 realistische Patientenszenarien",
+      "10 zufällige Patienten pro Durchgang",
       "Auswertung nach abgeschlossener Sichtung",
       "Detaillierte Fehleranalyse am Ende",
     ],

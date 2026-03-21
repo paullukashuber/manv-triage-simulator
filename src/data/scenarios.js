@@ -5,11 +5,6 @@
  * Display texts (description, reasoning) are German – sourced from i18n later
  * if full i18n is needed, but kept inline here for scenario-specific content.
  *
- * Category distribution (18 scenarios):
- *   red (SK1):    9  – covers all ABCD triggers
- *   yellow (SK2): 4  – important: no overtriage
- *   white:        3  – ambulatory patients
- *   dead:         2  – definitive death signs
  */
 
 export const scenarios = [
