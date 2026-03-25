@@ -1,4 +1,4 @@
-export const VERSION = "0.2.1";
+export const VERSION = "0.2.2";
 
 export const SCENARIOS_PER_SESSION = 10;
 
@@ -31,14 +31,13 @@ export const CATEGORIES = {
 };
 
 export const BADGE_STYLES = {
+  x: { bg: "bg-[#CC0000]", text: "text-white" },
   a: { bg: "bg-[#CC0000]", text: "text-white" },
   b: { bg: "bg-[#d97706]", text: "text-white" },
   c: { bg: "bg-[#9333ea]", text: "text-white" },
   d: { bg: "bg-[#6d28d9]", text: "text-white" },
-  info: {
-    bg: "bg-[var(--color-bg-elevated)]",
-    text: "text-[var(--color-accent)]",
-  },
+  walk: { bg: "bg-[var(--color-bg-elevated)]", text: "text-[var(--color-accent)]" },
+  dead: { bg: "bg-[var(--color-dead)]", text: "text-white" },
 };
 
 export const SCREENS = {

@@ -6,13 +6,13 @@
 export const de = {
   app: {
     title: "ManV Triage Simulator",
-    subtitle: "VOR-Sichtung",
-    version: "Prototyp v0.2",
+    subtitle: "VOR-Sichtung · Algorithmus Region Hannover",
+    version: "Prototyp v0.2.2",
     badge: "Trainingsmodus",
   },
 
   prototypeModal: {
-    title: "Prototyp – v0.2",
+    title: "Prototyp – v0.2.2",
     text: "Dieses Tool befindet sich in einer frühen Entwicklungsphase. Inhalte, Algorithmus-Logik und Darstellung können Fehler enthalten und sind noch nicht abschließend geprüft.",
     cta: "Fehler gerne als Issue auf GitHub melden.",
     button: "Verstanden",
@@ -24,7 +24,7 @@ export const de = {
       "Durchlaufe den Vorsichtungsalgorithmus Schritt für Schritt. Die Sichtung endet beim ersten zutreffenden Punkt – pro Patient nur 1 Entscheidung.",
     button: "Training starten",
     features: [
-      "10 zufällige Patienten pro Durchgang",
+      "18 realistische Patientenszenarien",
       "Auswertung nach abgeschlossener Sichtung",
       "Detaillierte Fehleranalyse am Ende",
     ],
@@ -102,7 +102,7 @@ export const de = {
   steps: {
     tourniquet: {
       question: "Lebensbedrohliche Extremitätenblutung erkennbar?",
-      hint: "Falls ja → sofort Tourniquet anlegen! Zeit notieren.\nSofortmaßnahme VOR der eigentlichen Sichtung.",
+      hint: "Falls ja → sofort Tourniquet anlegen! Zeit notieren.\nBei lebensbedrohlicher Extremitätenblutung → direkt SK 1 (X aus xABCDE).",
     },
     ambulatory: {
       question: "Ist der Patient gehfähig?",

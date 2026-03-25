@@ -5,23 +5,31 @@
  *   - a field in scenario.correctAnswers
  *   - a translation key in i18n (steps.<key>.question / steps.<key>.hint)
  *
+ * The algorithm follows xABCDE:
+ *   x = exsanguination (critical bleeding)
+ *   A = Airway
+ *   B = Breathing
+ *   C = Circulation
+ *   D = Disability
+ *
  * The algorithm stops at the FIRST positive finding (endsAssessment + endsOnYes).
- * Exception: tourniquet is an immediate measure that does NOT end the assessment.
  */
 
 export const triageSteps = [
   {
     key: "tourniquet",
     type: "yesno",
-    badgeType: "c",
-    badgeLabel: "C",
-    endsAssessment: false,
+    badgeType: "x",
+    badgeLabel: "X",
+    endsAssessment: true,
+    endsOnYes: true,
+    result: "red",
   },
   {
     key: "ambulatory",
     type: "yesno",
-    badgeType: "info",
-    badgeLabel: "?",
+    badgeType: "walk",
+    badgeLabel: "🚶",
     endsAssessment: true,
     endsOnYes: true,
     result: "white",
@@ -29,8 +37,8 @@ export const triageSteps = [
   {
     key: "deathSigns",
     type: "yesno",
-    badgeType: "info",
-    badgeLabel: "†",
+    badgeType: "dead",
+    badgeLabel: "✝",
     endsAssessment: true,
     endsOnYes: true,
     result: "dead",
