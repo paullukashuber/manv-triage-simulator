@@ -3,6 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  base: "/manv-triage-simulator/",
+  base: "/",
   plugins: [react(), tailwindcss()],
 });
