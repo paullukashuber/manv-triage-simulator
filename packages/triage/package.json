@@ -1,0 +1,13 @@
+{
+  "name": "@manv/triage",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
