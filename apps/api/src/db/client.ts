@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js'
@@ -15,21 +16,27 @@ type Migrate = (folder: string) => Promise<void>
 const migrators = new WeakMap<Db, Migrate>()
 
 /**
- * Migrations are generated into apps/api/drizzle. This module runs from
- * src/db/ (tests, tsx) or is bundled into dist/ (tsup), so probe both layouts.
+ * Migrations are generated into apps/api/drizzle. The module runs from src/db/
+ * (tests, tsx) or is bundled into dist/ (tsup; the image ships drizzle/ next to dist/).
+ * The candidate for the current layout is probed first, and a folder only counts
+ * when it holds meta/_journal.json, so an unrelated "drizzle" directory is never used.
  */
-function migrationsFolder(): string {
-  for (const rel of ['../../drizzle', '../drizzle']) {
-    const path = fileURLToPath(new URL(rel, import.meta.url))
-    if (existsSync(path)) return path
+export function resolveMigrationsFolder(moduleUrl: string): string {
+  const inSourceTree = basename(dirname(fileURLToPath(moduleUrl))) === 'db'
+  const candidates = inSourceTree ? ['../../drizzle', '../drizzle'] : ['../drizzle', '../../drizzle']
+  for (const rel of candidates) {
+    const path = fileURLToPath(new URL(rel, moduleUrl))
+    if (existsSync(join(path, 'meta', '_journal.json'))) return path
   }
-  throw new Error('Migrations folder apps/api/drizzle not found')
+  throw new Error('Migrations folder (drizzle/meta/_journal.json) not found')
 }
+
+const migrationsFolder = () => resolveMigrationsFolder(import.meta.url)
 
 export function createDb(url: string): { db: Db; close(): Promise<void> } {
   const client = postgres(url)
   const db = drizzlePostgres(client, { schema })
-  migrators.set(db, (migrationsFolder) => migratePostgres(db, { migrationsFolder }))
+  migrators.set(db, (folder) => migratePostgres(db, { migrationsFolder: folder }))
   return { db, close: () => client.end() }
 }
 
@@ -47,7 +54,7 @@ export async function createTestDb(): Promise<Db> {
     import('drizzle-orm/pglite/migrator'),
   ])
   const db = drizzlePglite(new PGlite(), { schema })
-  migrators.set(db, (migrationsFolder) => migratePglite(db, { migrationsFolder }))
+  migrators.set(db, (folder) => migratePglite(db, { migrationsFolder: folder }))
   await migrateDb(db)
   return db
 }

@@ -11,7 +11,7 @@ export type Config = {
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  PORT: z.coerce.number().int().min(0).max(65535).default(3001),
+  PORT: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.number().int().min(0).max(65535).default(3001)),
   PUBLIC_URL: z.url(),
   AUTH_SECRET: z.string().min(32),
   SEED_PUBLISH: z.enum(['true', 'false']).default('false'),

@@ -1,0 +1,73 @@
+name: manv-triage-app
+
+services:
+  web:
+    image: ghcr.io/paullukashuber/manv-triage-simulator-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3010:80'
+    depends_on:
+      - api
+
+  api:
+    image: ghcr.io/paullukashuber/manv-triage-simulator-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://manv:${POSTGRES_PASSWORD}@db:5432/manv
+      PUBLIC_URL: ${PUBLIC_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      SEED_PUBLISH: ${SEED_PUBLISH:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: manv
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: manv
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U manv -d manv']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: manv
+      PGDATABASE: manv
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db_backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    # First dump after ~1 minute, then every 24 h; keep 14 days.
+    # "$$" is Compose's escape for a literal "$" in the shell script.
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        sleep 60
+        while true; do
+          f="/backups/manv-$$(date +%F).sql.gz"
+          if pg_dump | gzip > "$$f.tmp"; then
+            mv "$$f.tmp" "$$f"
+            echo "backup written: $$f"
+          else
+            echo "backup FAILED" >&2
+          fi
+          find /backups -name 'manv-*.sql.gz' -mtime +14 -delete
+          sleep 86400
+        done
+
+volumes:
+  db_data:
+  db_backups:

@@ -24,6 +24,10 @@ describe('loadConfig', () => {
     expect(config).toMatchObject({ port: 8080, seedPublish: true, nodeEnv: 'production' })
   })
 
+  it('treats an empty PORT as unset', () => {
+    expect(loadConfig({ ...base, PORT: '' }).port).toBe(3001)
+  })
+
   it('throws naming a missing AUTH_SECRET', () => {
     expect(() => loadConfig({ ...base, AUTH_SECRET: undefined })).toThrow(/AUTH_SECRET/)
   })
