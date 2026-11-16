@@ -54,6 +54,14 @@ describe('SEED_CASES', () => {
   )
 
   it.each(SEED_CASES.map((c) => [c.slug, c] as const))(
+    '%s: description has at most 3 sentences',
+    (slug, c) => {
+      const sentences = c.description.split(/[.!?](?:\s|$)/).filter((s) => s.trim() !== '')
+      expect(sentences.length, slug).toBeLessThanOrEqual(3)
+    },
+  )
+
+  it.each(SEED_CASES.map((c) => [c.slug, c] as const))(
     '%s: description does not name the answer',
     (slug, c) => {
       expect(c.description, slug).not.toMatch(/\bSK ?[12]\b|PAK|Tourniquet|Sichtungskategorie/)

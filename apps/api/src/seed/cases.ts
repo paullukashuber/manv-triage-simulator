@@ -219,7 +219,7 @@ export const SEED_CASES: SeedCase[] = [
   {
     slug: 'new-af-9',
     description:
-      '62-jähriger Mann, liegt nach einer Massenpanik am Boden und kann nicht aufstehen. Reagiert verlangsamt, beantwortet Fragen aber passend. Keine Blutung sichtbar, Atemwege frei. AF gezählt: 9/min.',
+      '62-jähriger Mann, liegt nach einer Massenpanik am Boden und kann nicht aufstehen. Reagiert verlangsamt, beantwortet Fragen aber passend. Keine Blutung sichtbar, Atemwege frei, AF gezählt: 9/min.',
     reasoning:
       'AF 9/min liegt unter 10 → pathologische Atemfrequenz → SK 1 (B). Bei Erwachsenen gilt die AF erst ab 10/min als unauffällig.',
     findings: { ...defaultFindings(), respiratoryRate: 9 },
@@ -241,7 +241,7 @@ export const SEED_CASES: SeedCase[] = [
   {
     slug: 'new-kind-af-14',
     description:
-      '5-jähriges Mädchen, liegt nach einem Gedränge am Boden und kann nicht aufstehen. Wirkt schläfrig, antwortet aber auf Fragen. Keine Blutung sichtbar, Atemwege frei. AF gezählt: 14/min.',
+      '5-jähriges Mädchen, liegt nach einem Gedränge am Boden und kann nicht aufstehen. Wirkt schläfrig, antwortet aber auf Fragen. Keine Blutung sichtbar, Atemwege frei, AF gezählt: 14/min.',
     reasoning:
       'Bei Kindern ist eine AF < 15/min pathologisch → SK 1 (B). Mit den Erwachsenen-Grenzwerten (< 10) wäre AF 14 unauffällig – Kinder-Grenzwerte beachten!',
     findings: { ...defaultFindings(), ageGroup: 'child', respiratoryRate: 14 },
@@ -265,7 +265,7 @@ export const SEED_CASES: SeedCase[] = [
   {
     slug: 'legacy-14',
     description:
-      '36-jähriger Mann mit einer Stichverletzung am Bauch, liegt am Boden. Ansprechbar, aber blass. Pulsierendes Blut tritt aus der Wunde aus. AF gezählt: 24/min.',
+      '36-jähriger Mann mit einer Stichverletzung am Bauch, liegt am Boden. Ansprechbar, aber blass, AF gezählt: 24/min. Pulsierendes Blut tritt aus der Wunde aus.',
     reasoning:
       'Lebensbedrohliche Blutung (pulsierend = arteriell) → SK 1 (C). X trifft nicht zu, weil keine Extremität betroffen ist: Kein Tourniquet möglich bei Rumpfverletzung – Kompression/Packing nötig.',
     findings: { ...defaultFindings(), respiratoryRate: 24, lifeThreateningBleeding: true },
@@ -338,7 +338,7 @@ export const SEED_CASES: SeedCase[] = [
   {
     slug: 'new-kind-af-40-reagiert-nicht',
     description:
-      '4-jähriger Junge, aus einem verunfallten Reisebus geborgen, liegt schlaff am Boden, Augen geschlossen. Atmet frei, keine Blutung sichtbar. AF gezählt: 40/min, Radialispuls tastbar. Reagiert nicht auf Ansprache, auf Schmerzreiz nur ungezieltes Wimmern.',
+      '4-jähriger Junge, aus einem verunfallten Reisebus geborgen, liegt schlaff am Boden, Augen geschlossen, keine Blutung sichtbar. Atmet frei, AF gezählt: 40/min, Radialispuls tastbar. Reagiert nicht auf Ansprache, auf Schmerzreiz nur ungezieltes Wimmern.',
     reasoning:
       'AF 40/min ist bei Kindern noch unauffällig (pathologisch erst > 40) → B trifft nicht zu. Radialispuls tastbar. Keine gezielte Reaktion auf Ansprache → SK 1 (D).',
     findings: {
