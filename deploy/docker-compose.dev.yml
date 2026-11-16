@@ -1,0 +1,16 @@
+# Nur für die lokale Entwicklung: Postgres lauscht ausschließlich auf 127.0.0.1 und
+# akzeptiert Verbindungen ohne Passwort (trust), daher steht hier kein Passwort.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: manv
+      POSTGRES_DB: manv
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - dev_db_data:/var/lib/postgresql/data
+
+volumes:
+  dev_db_data:
