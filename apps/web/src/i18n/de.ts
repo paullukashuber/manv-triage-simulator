@@ -82,6 +82,28 @@ export const de = {
     },
   },
 
+  training: {
+    loading: 'Fälle werden geladen …',
+    noCases: 'Aktuell sind keine freigegebenen Fälle vorhanden.',
+    loadError: 'Die Fälle konnten nicht geladen werden.',
+    retry: 'Erneut versuchen',
+    backToStart: 'Zurück zur Startseite',
+    backToEditor: 'Zurück zum Editor',
+    errorTypes: {
+      missed: 'übersehen',
+      overcalled: 'fälschlich bejaht',
+    },
+    learningFields: {
+      x: 'X – Kritische Blutung',
+      ambulatory: 'Gehfähigkeit',
+      death: 'Todeszeichen',
+      a: 'A – Atemweg',
+      b: 'B – Atmung',
+      c: 'C – Kreislauf',
+      d: 'D – Bewusstsein',
+    },
+  },
+
   categories: {
     red: { short: 'SK 1', full: 'SK 1 – Sofortbehandlung' },
     yellow: { short: 'SK 2', full: 'SK 2 – Aufgeschobene Behandlung' },

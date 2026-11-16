@@ -1,4 +1,4 @@
 import { createBrowserRouter } from 'react-router'
-import { HomePlaceholder } from './pages/HomePlaceholder.tsx'
+import { TrainingPage } from './training/TrainingPage.tsx'
 
-export const router = createBrowserRouter([{ path: '/', element: <HomePlaceholder /> }])
+export const router = createBrowserRouter([{ path: '/', element: <TrainingPage /> }])
