@@ -12,29 +12,38 @@ Er hat ein eigenes Verzeichnis, eigene Volumes und lauscht nur auf `127.0.0.1:30
 
 ## Ersteinrichtung
 
-1. Verzeichnis anlegen und die Compose-Datei ablegen (das Deploy-Skript kopiert sie später automatisch):
+1. Verzeichnis anlegen. `docker-compose.yml` und `.env.example` kopiert der Deploy-Workflow bei jedem Lauf
+   automatisch hierher. Vor dem allerersten Start also einmal den Workflow laufen lassen oder beide Dateien
+   aus `deploy/` im Repo von Hand kopieren:
 
    ```sh
    sudo mkdir -p /opt/manv-triage-app
    sudo chown "$USER" /opt/manv-triage-app
    cd /opt/manv-triage-app
-   # docker-compose.yml aus deploy/ im Repo hierher kopieren
    ```
 
-2. `.env` anlegen (Vorlage: `deploy/.env.example`):
+2. `.env` anlegen und Werte setzen:
 
    ```sh
-   cp .env.example .env   # oder die Datei von Hand anlegen
+   cp .env.example .env
+   chmod 600 .env
+   openssl rand -hex 24      # Ausgabe als POSTGRES_PASSWORD eintragen
    openssl rand -base64 48   # Ausgabe als AUTH_SECRET eintragen
    ```
 
+   Die Platzhalter `CHANGE_ME` führen absichtlich zu einem Startfehler, bis sie ersetzt sind.
+
    | Variable | Bedeutung |
    |---|---|
-   | `POSTGRES_PASSWORD` | Passwort der Datenbank (frei wählen, lang und zufällig) |
+   | `POSTGRES_PASSWORD` | Passwort der Datenbank, erzeugt mit `openssl rand -hex 24` (Hex, weil das Passwort in der `DATABASE_URL` steht; Base64 enthält Zeichen wie `/` und `+`, die die URL zerstören) |
    | `AUTH_SECRET` | mindestens 32 Zeichen, erzeugt mit `openssl rand -base64 48` |
    | `PUBLIC_URL` | `https://triage.plhuber.de` |
    | `SEED_PUBLISH` | `false` im Betrieb: Seed-Fälle bleiben Entwurf, bis sie im Editor freigegeben werden |
    | `IMAGE_TAG` | `latest` oder ein Commit-SHA, um eine bestimmte Version zu starten |
+
+   Achtung: `POSTGRES_PASSWORD` wird nur beim ersten Anlegen des Datenbank-Volumes gesetzt. Eine spätere Änderung
+   in `.env` ändert das Passwort in der bestehenden Datenbank **nicht**; dann schlägt die Anmeldung der API fehl.
+   Das Passwort ließe sich dann nur in der Datenbank selbst ändern (`ALTER USER manv PASSWORD '…'`).
 
 3. Starten:
 
@@ -53,7 +62,9 @@ Die Images liegen in der GitHub Container Registry. Sind sie privat, vorher einm
 docker compose exec api node dist/cli.js create-admin --email admin@example.org --name "Vorname Nachname"
 ```
 
-Das Passwort wird interaktiv abgefragt. Weitere Konten verwaltet der Admin danach in der Anwendung.
+Das Passwort wird interaktiv abgefragt. Das braucht ein Terminal: Wer den Befehl direkt per SSH absetzt, muss
+`ssh -t user@server '…'` verwenden, sonst scheitert `docker compose exec` ohne TTY. Weitere Konten verwaltet der
+Admin danach in der Anwendung.
 
 ## Fälle freigeben
 
@@ -62,24 +73,40 @@ veröffentlichen. Erst veröffentlichte Revisionen erscheinen im Training.
 
 ## Host-nginx umstellen
 
-TLS bleibt beim Host-nginx (Cloudflare-Zertifikat). In der Server-Konfiguration für `triage.plhuber.de`
-entfallen die alten `/api/`- und `/admin`-Blöcke; es bleibt ein einziger Block:
+TLS bleibt beim Host-nginx (Cloudflare-Zertifikat). Geändert wird **nur** der `server { … }`-Block mit
+`server_name triage.plhuber.de;`. Der separate Block für `auth.plhuber.de` und die Authentik-Container bleiben
+unverändert.
 
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:3010;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
+1. Konfiguration sichern (Pfad an den Server anpassen):
 
-Dann prüfen und neu laden:
+   ```sh
+   sudo cp /etc/nginx/sites-available/triage.plhuber.de /etc/nginx/sites-available/triage.plhuber.de.bak
+   ```
 
-```sh
-sudo nginx -t && sudo systemctl reload nginx
-```
+2. Im `triage.plhuber.de`-Block alle bisherigen `location`-Blöcke entfernen, also `/api/`, `/api/admin/`,
+   `/admin`, `/outpost.goauthentik.io` und `@authentik_login` samt der alten `location /`. Stattdessen genau
+   ein Block:
+
+   ```nginx
+   location / {
+       proxy_pass http://127.0.0.1:3010;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+
+   `listen`, `server_name`, Zertifikate und sonstige Einstellungen des Blocks bleiben.
+
+3. Prüfen und neu laden:
+
+   ```sh
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+Zurückrollen: `.bak` zurückkopieren (`sudo cp …bak …`), dann `sudo nginx -t && sudo systemctl reload nginx`.
+Der alte Stack läuft bis dahin weiter, sofern seine Container noch nicht gestoppt wurden.
 
 ## Alte Container stoppen
 
@@ -95,7 +122,7 @@ docker compose stop frontend api
 ## Updates
 
 Jeder Push auf `main` startet den Workflow `Deploy to Server`: Tests, Images bauen und nach GHCR pushen,
-`docker-compose.yml` per SCP nach `/opt/manv-triage-app` (Repository-Variable `DEPLOY_PATH` überschreibt den Pfad)
+`docker-compose.yml` und `.env.example` per SCP nach `/opt/manv-triage-app` (Repository-Variable `DEPLOY_PATH` überschreibt den Pfad)
 kopieren, dann `docker compose pull && docker compose up -d --remove-orphans`.
 Benötigte Secrets: `SERVER_HOST`, `SERVER_USER`, `SERVER_SSH_KEY`.
 
@@ -112,18 +139,47 @@ docker compose exec backup ls -l /backups
 
 ### Wiederherstellen
 
+Wichtig: `docker compose down -v` löscht **alle** Volumes des Projekts, auch `db_backups` mit den Sicherungen.
+Im Betrieb niemals `down -v` verwenden.
+
+Ein Dump enthält das komplette Schema und lässt sich nur in eine **leere** Datenbank einspielen (in eine bereits
+migrierte Datenbank liefert er „already exists“- und Primärschlüssel-Fehler).
+
+1. Dump zuerst aus dem Volume herauskopieren (Pflicht, bevor irgendetwas gelöscht wird):
+
+   ```sh
+   cd /opt/manv-triage-app
+   docker compose exec backup ls /backups        # Dateinamen ansehen
+   docker compose cp backup:/backups/manv-2026-01-31.sql.gz ./
+   ```
+
+2. Nur das Datenbank-Volume neu anlegen (die Backups bleiben erhalten):
+
+   ```sh
+   docker compose stop api db
+   docker compose rm -f db
+   docker volume rm manv-triage-app_db_data
+   docker compose up -d db
+   ```
+
+3. Dump einspielen und danach die API starten:
+
+   ```sh
+   gunzip -c manv-2026-01-31.sql.gz | docker compose exec -T db psql -v ON_ERROR_STOP=1 -U manv manv
+   docker compose up -d api
+   ```
+
+Alternative ohne Volume-Löschen: in der laufenden Datenbank das Schema leeren, dann Schritt 3 ausführen
+(`docker compose stop api` vorher):
+
 ```sh
-cd /opt/manv-triage-app
-docker compose stop api
-docker compose exec backup ls /backups                       # Dateinamen ansehen
-docker compose cp backup:/backups/manv-2026-01-31.sql.gz .   # optional: Kopie außerhalb des Volumes
-gunzip -c manv-2026-01-31.sql.gz | docker compose exec -T db psql -U manv manv
-docker compose start api
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U manv manv \
+  -c 'DROP SCHEMA public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public;'
 ```
 
-Die Sicherung ist ein normaler SQL-Dump. Für eine Wiederherstellung in eine frische Datenbank
-`docker compose down -v` (löscht die Volumes!), `docker compose up -d db`, den Dump einspielen und danach alles starten.
 Die Backups liegen auf demselben Server wie die Datenbank; für echten Schutz die Dateien regelmäßig extern kopieren.
+Ein Backup gilt nur dann als erfolgreich, wenn `pg_dump` ohne Fehler endet und die Datei nicht leer ist; sonst
+steht `backup FAILED` im Log (`docker compose logs backup`).
 
 ## Lokal bauen und testen
 

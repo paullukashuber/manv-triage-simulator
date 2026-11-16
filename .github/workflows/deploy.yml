@@ -5,12 +5,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
   build-and-deploy:
     needs: ci
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,13 +63,13 @@ jobs:
             ${{ env.WEB_IMAGE }}:latest
             ${{ env.WEB_IMAGE }}:${{ github.sha }}
 
-      - name: Copy compose file to server
+      - name: Copy compose file and .env.example to server
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: deploy/docker-compose.yml
+          source: deploy/docker-compose.yml,deploy/.env.example
           target: ${{ env.DEPLOY_PATH }}
           strip_components: 1
 
@@ -73,6 +81,4 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           envs: DEPLOY_PATH
           script: |
-            cd "$DEPLOY_PATH"
-            docker compose pull
-            docker compose up -d --remove-orphans
+            cd "$DEPLOY_PATH" && docker compose pull && docker compose up -d --remove-orphans

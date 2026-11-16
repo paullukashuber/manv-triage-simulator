@@ -14,9 +14,9 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://manv:${POSTGRES_PASSWORD}@db:5432/manv
-      PUBLIC_URL: ${PUBLIC_URL}
-      AUTH_SECRET: ${AUTH_SECRET}
+      DATABASE_URL: postgres://manv:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/manv
+      PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL must be set in .env}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET must be set in .env}
       SEED_PUBLISH: ${SEED_PUBLISH:-false}
     depends_on:
       db:
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: manv
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: manv
     volumes:
       - db_data:/var/lib/postgresql/data
@@ -44,7 +44,7 @@ services:
       PGHOST: db
       PGUSER: manv
       PGDATABASE: manv
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - db_backups:/backups
     depends_on:
@@ -58,13 +58,16 @@ services:
         sleep 60
         while true; do
           f="/backups/manv-$$(date +%F).sql.gz"
-          if pg_dump | gzip > "$$f.tmp"; then
-            mv "$$f.tmp" "$$f"
+          t="/backups/.dump.tmp"
+          # No pipefail in busybox sh: dump to a file first and check pg_dump itself.
+          if pg_dump > "$$t" && [ -s "$$t" ] && gzip -c "$$t" > "$$f.tmp" && mv "$$f.tmp" "$$f"; then
             echo "backup written: $$f"
+            find /backups -name 'manv-*.sql.gz' -mtime +14 -delete
           else
             echo "backup FAILED" >&2
           fi
-          find /backups -name 'manv-*.sql.gz' -mtime +14 -delete
+          # Temp files (also stale ones from a failed run) never survive an iteration.
+          find /backups -name '*.tmp' -delete
           sleep 86400
         done
 

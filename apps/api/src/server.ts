@@ -13,14 +13,14 @@ try {
   app = await buildApp({ db, config })
   const { inserted } = await seedCases(db, SEED_CASES, { publish: config.seedPublish })
   app.log.info({ inserted }, 'seeded cases')
+  // Closing the app also closes the DB client (onClose hook).
+  app.addHook('onClose', close)
+  await app.listen({ host: '0.0.0.0', port: config.port })
 } catch (error) {
   console.error('Startup failed:', error)
   await close().catch(() => undefined)
   process.exit(1)
 }
-
-// Closing the app also closes the DB client (onClose hook).
-app.addHook('onClose', close)
 
 let shuttingDown = false
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
@@ -37,5 +37,3 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     )
   })
 }
-
-await app.listen({ host: '0.0.0.0', port: config.port })
