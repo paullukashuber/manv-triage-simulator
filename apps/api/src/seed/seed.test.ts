@@ -40,14 +40,26 @@ describe('seedCases', () => {
     expect(await db.select().from(cases)).toEqual([])
   })
 
-  it('placeholder SEED_CASES are valid and publishable', async () => {
-    expect(SEED_CASES.map((s) => s.slug)).toEqual([
-      'placeholder-1',
-      'placeholder-2',
-      'placeholder-3',
-    ])
+  it('throws naming the slug when expectedCategory does not match, writing nothing', async () => {
+    const mismatch = { ...caseInput(), slug: 'falsch-kategorisiert', expectedCategory: 'red' as const }
+    await expect(seedCases(db, [...seeds, mismatch], { publish: true })).rejects.toThrow(
+      /falsch-kategorisiert/,
+    )
+    expect(await db.select().from(cases)).toEqual([])
+  })
+
+  it('rolls back all inserts when a later insert fails', async () => {
+    const duplicate = [...seeds, { ...caseInput(), slug: 's-1' }]
+    await expect(seedCases(db, duplicate, { publish: true })).rejects.toThrow()
+    expect(await db.select().from(cases)).toEqual([])
+  })
+
+  it('SEED_CASES are valid and publishable', async () => {
     expect(await seedCases(db, SEED_CASES, { publish: true })).toEqual({
-      inserted: 3,
+      inserted: SEED_CASES.length,
     })
+    const rows = await db.select().from(cases)
+    expect(rows).toHaveLength(SEED_CASES.length)
+    expect(rows.every((r) => r.status === 'published')).toBe(true)
   })
 })
