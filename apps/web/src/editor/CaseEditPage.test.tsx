@@ -1,7 +1,8 @@
 import { defaultFindings, type CaseInput } from '@manv/triage'
-import { screen, waitFor, within } from '@testing-library/react'
+import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toCaseInput } from './caseInput.ts'
 import { jsonResponse, makeDetail, mockApi, renderEditor, type ApiRequest } from '../test/editor-fixtures.tsx'
 
 beforeEach(() => {
@@ -10,9 +11,12 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 const CASE_URL = '/api/editor/cases/c1'
+const DRAFT_KEY = 'manv:case-draft:c1'
+const NEW_DRAFT_KEY = 'manv:case-draft:new'
 
 function publishButton() {
   return screen.getByRole('button', { name: 'Veröffentlichen' })
@@ -133,6 +137,108 @@ describe('CaseEditPage', () => {
     await user.click(screen.getByRole('link', { name: /Zur Fallliste/ }))
     await user.click(await screen.findByRole('button', { name: 'Verwerfen' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/editor'))
+    expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull()
+  })
+
+  describe('unsaved drafts', () => {
+    const RESTORED = 'Nicht gespeicherte Änderungen wiederhergestellt.'
+
+    function storedDraft(key = DRAFT_KEY) {
+      const raw = sessionStorage.getItem(key)
+      return raw === null ? null : (JSON.parse(raw) as CaseInput)
+    }
+
+    // Simulates the global 401 handler: RequireRole unmounts the editor, the user signs in again
+    // and lands on the same case.
+    async function editThenRemount(text: string) {
+      const detail = makeDetail()
+      mockApi(() => jsonResponse(detail))
+      const user = userEvent.setup()
+      renderEditor('/editor/cases/c1')
+      await user.type(await screen.findByLabelText('Fallbeschreibung'), text)
+      await waitFor(() => expect(storedDraft()?.description).toBe(detail.description + text))
+      cleanup()
+      renderEditor('/editor/cases/c1')
+      return { detail, user }
+    }
+
+    it('restores unsaved input after the editor was unmounted', async () => {
+      const { detail } = await editThenRemount(' Er blutet.')
+      expect(await screen.findByLabelText('Fallbeschreibung')).toHaveValue(`${detail.description} Er blutet.`)
+      expect(screen.getByText(RESTORED)).toBeInTheDocument()
+      expect(screen.getByText('Ungespeicherte Änderungen')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Speichern' })).toBeEnabled()
+    })
+
+    it('discards a restored draft', async () => {
+      const { detail, user } = await editThenRemount(' Er blutet.')
+      await screen.findByText(RESTORED)
+      await user.click(screen.getByRole('button', { name: 'Verwerfen' }))
+      expect(screen.getByLabelText('Fallbeschreibung')).toHaveValue(detail.description)
+      expect(screen.queryByText(RESTORED)).not.toBeInTheDocument()
+      expect(screen.queryByText('Ungespeicherte Änderungen')).not.toBeInTheDocument()
+      expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull()
+    })
+
+    it('clears the draft after a successful save', async () => {
+      const detail = makeDetail()
+      mockApi(({ method, body }) =>
+        method === 'PUT' ? jsonResponse({ ...detail, ...(body as CaseInput) }) : jsonResponse(detail),
+      )
+      const user = userEvent.setup()
+      renderEditor('/editor/cases/c1')
+      await user.type(await screen.findByLabelText('Fallbeschreibung'), '!')
+      await waitFor(() => expect(storedDraft()).not.toBeNull())
+      await user.click(screen.getByRole('button', { name: 'Speichern' }))
+      expect(await screen.findByText('Gespeichert.')).toBeInTheDocument()
+      expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull()
+    })
+
+    it('keeps a draft of a new case under "new" and clears it once created', async () => {
+      const created = makeDetail({ id: 'new-1', slug: null })
+      mockApi(({ method }) => (method === 'POST' ? jsonResponse(created, 201) : jsonResponse(created)))
+      const user = userEvent.setup()
+      renderEditor('/editor/cases/new')
+      await user.type(screen.getByLabelText('Fallbeschreibung'), created.description)
+      await waitFor(() => expect(storedDraft(NEW_DRAFT_KEY)?.description).toBe(created.description))
+
+      cleanup()
+      const again = renderEditor('/editor/cases/new')
+      expect(await screen.findByLabelText('Fallbeschreibung')).toHaveValue(created.description)
+      expect(screen.getByText(RESTORED)).toBeInTheDocument()
+      await user.type(screen.getByLabelText('Begründung'), created.reasoning)
+      await user.click(screen.getByRole('button', { name: 'Speichern' }))
+      await waitFor(() => expect(again.state.location.pathname).toBe('/editor/cases/new-1'))
+      expect(sessionStorage.getItem(NEW_DRAFT_KEY)).toBeNull()
+    })
+
+    it.each([
+      ['unreadable', () => '{"description":42'],
+      ['malformed', () => JSON.stringify({ ...toCaseInput(makeDetail()), findings: { ambulatory: 'yes' } })],
+      ['equal to the server value', () => JSON.stringify(toCaseInput(makeDetail()))],
+    ])('ignores and removes a stored draft that is %s', async (_label, stored) => {
+      const detail = makeDetail()
+      sessionStorage.setItem(DRAFT_KEY, stored())
+      mockApi(() => jsonResponse(detail))
+      renderEditor('/editor/cases/c1')
+      expect(await screen.findByLabelText('Fallbeschreibung')).toHaveValue(detail.description)
+      expect(screen.queryByText(RESTORED)).not.toBeInTheDocument()
+      await waitFor(() => expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull())
+    })
+
+    it('keeps editing when the storage is unavailable', async () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      })
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new DOMException('denied', 'SecurityError')
+      })
+      mockApi(() => jsonResponse(makeDetail()))
+      const user = userEvent.setup()
+      renderEditor('/editor/cases/c1')
+      await user.type(await screen.findByLabelText('Fallbeschreibung'), '!')
+      expect(screen.getByText('Ungespeicherte Änderungen')).toBeInTheDocument()
+    })
   })
 
   it('deletes an unpublished draft after confirmation', async () => {

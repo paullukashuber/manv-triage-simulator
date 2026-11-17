@@ -307,6 +307,8 @@ export const de = {
       saving: 'Wird gespeichert …',
       saved: 'Gespeichert.',
       dirty: 'Ungespeicherte Änderungen',
+      draftRestored: 'Nicht gespeicherte Änderungen wiederhergestellt.',
+      discardDraft: 'Verwerfen',
       publish: 'Veröffentlichen',
       published: 'Als Revision {{number}} veröffentlicht.',
       trialRun: 'Probe-Sichtung',

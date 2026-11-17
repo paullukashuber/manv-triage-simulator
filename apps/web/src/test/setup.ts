@@ -6,4 +6,5 @@ import '../i18n/index.ts'
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  sessionStorage.clear()
 })

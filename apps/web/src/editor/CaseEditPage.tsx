@@ -8,6 +8,7 @@ import { ApiError } from '../lib/api.ts'
 import { TrainingRunner } from '../training/TrainingRunner.tsx'
 import { editorApi, useCaseDetail, useCaseMutation, useDeleteCase } from './api.ts'
 import { errorFeedback } from './apiErrors.ts'
+import { clearDraft, draftKeyFor, loadDraft, saveDraft } from './caseDraft.ts'
 import { CaseForm } from './CaseForm.tsx'
 import { emptyCaseInput, fieldValue, isSameCaseInput, toCaseInput } from './caseInput.ts'
 import { CaseStatusChip, UnpublishedChangesChip } from './CaseStatusChip.tsx'
@@ -52,8 +53,14 @@ function CaseEditor({ detail }: { detail: CaseDetail | null }) {
   const location = useLocation()
   const hintId = useId()
 
+  const draftKey = draftKeyFor(detail?.id)
   const [saved, setSaved] = useState<CaseInput>(() => (detail ? toCaseInput(detail) : emptyCaseInput()))
-  const [value, setValue] = useState<CaseInput>(saved)
+  const [restoredDraft] = useState(() => {
+    const draft = loadDraft(draftKey)
+    return draft && !isSameCaseInput(draft, saved) ? draft : null
+  })
+  const [value, setValue] = useState<CaseInput>(restoredDraft ?? saved)
+  const [showRestored, setShowRestored] = useState(restoredDraft !== null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [message, setMessage] = useState<Message | null>(() => {
     const notice = noticeFrom(location.state)
@@ -84,6 +91,24 @@ function CaseEditor({ detail }: { detail: CaseDetail | null }) {
     [dirty],
   )
   const blocker = useBlocker(shouldBlock)
+
+  // Keeps unsaved input across an unmount (e.g. the login redirect after a 401); see caseDraft.ts.
+  useEffect(() => {
+    if (dirty) saveDraft(draftKey, value)
+    else clearDraft(draftKey)
+  }, [dirty, draftKey, value])
+
+  function discardDraft() {
+    clearDraft(draftKey)
+    setValue(saved)
+    setErrors({})
+    setShowRestored(false)
+  }
+
+  function leaveDiscarding() {
+    clearDraft(draftKey)
+    blocker.proceed?.()
+  }
 
   useEffect(() => {
     if (!dirty) return
@@ -126,9 +151,11 @@ function CaseEditor({ detail }: { detail: CaseDetail | null }) {
         setSaved(next)
         setValue((current) => (isSameCaseInput(current, submitted) ? next : current))
         setErrors({})
+        setShowRestored(false)
         if (detail) {
           succeed(t('editor.edit.saved'))
         } else {
+          clearDraft(draftKey)
           allowLeave.current = true
           void navigate(`/editor/cases/${result.id}`, { replace: true, state: { notice: 'saved' } })
         }
@@ -201,7 +228,7 @@ function CaseEditor({ detail }: { detail: CaseDetail | null }) {
           {t('editor.edit.endTrialRun')}
         </button>
         <TrainingRunner cases={[previewCase]} mode="preview" onExit={() => showTrialRun(false)} />
-        {blocker.state === 'blocked' && <LeaveDialog onStay={blocker.reset} onLeave={blocker.proceed} />}
+        {blocker.state === 'blocked' && <LeaveDialog onStay={blocker.reset} onLeave={leaveDiscarding} />}
       </div>
     )
   }
@@ -275,6 +302,18 @@ function CaseEditor({ detail }: { detail: CaseDetail | null }) {
         </div>
       </div>
 
+      {showRestored && dirty && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sk2/40 bg-sk2/10 px-3 py-2 text-[0.85rem]"
+        >
+          <span>{t('editor.edit.draftRestored')}</span>
+          <Button variant="secondary" size="sm" onClick={discardDraft}>
+            {t('editor.edit.discardDraft')}
+          </Button>
+        </div>
+      )}
+
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <CaseForm value={value} onChange={onChange} errors={errors} />
         <aside className="lg:sticky lg:top-4">
@@ -338,7 +377,7 @@ function CaseEditor({ detail }: { detail: CaseDetail | null }) {
           onCancel={() => setConfirmDelete(false)}
         />
       )}
-      {blocker.state === 'blocked' && <LeaveDialog onStay={blocker.reset} onLeave={blocker.proceed} />}
+      {blocker.state === 'blocked' && <LeaveDialog onStay={blocker.reset} onLeave={leaveDiscarding} />}
     </div>
   )
 }
