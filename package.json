@@ -6,7 +6,7 @@
   "engines": { "node": ">=22" },
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "concurrently -n api,web -c cyan,magenta --kill-others-on-fail \"npm run dev -w @manv/api\" \"npm run dev -w @manv/web\"",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.6",
     "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.8",
