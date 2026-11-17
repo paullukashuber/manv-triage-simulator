@@ -34,3 +34,6 @@ Sicherheits- oder Datenverlust-Problem; alles Kritische und Wichtige ist bereits
 ## Phase 3 (eigener Plan)
 Konten für Teilnehmende, gespeicherte Durchgänge, Fortschritt, Lernfelder, gezieltes Üben, Konto löschen, SMTP.
 Dabei: Antworten serverseitig mit zod validieren, bevor `gradeRun` sie bekommt.
+
+## Betrieb: Abbau des alten Stacks
+Der Abbau des alten Stacks in `/opt/manv-triage` inklusive Authentik (Archiv, `docker compose down`, `auth.plhuber.de` aus Host-nginx und Cloudflare-DNS entfernen, nach Wartezeit Volumes/Images/Verzeichnis löschen) ist ein Betreiber-Schritt auf dem Server, kein Workflow. Ablauf: `deploy/README.md`, Abschnitt „Alten Stack abbauen“.

@@ -1,6 +1,8 @@
 # Betrieb: MANV-Sichtungssimulator
 
-Der Stack läuft als eigenes Compose-Projekt `manv-triage-app` **neben** dem alten Simulator und Authentik.
+Der Stack läuft als eigenes Compose-Projekt `manv-triage-app` und löst den alten Stack in `/opt/manv-triage` ab.
+Er wird zuerst daneben hochgefahren und geprüft; danach wird der alte Stack inklusive Authentik abgebaut
+(siehe [Alten Stack abbauen](#alten-stack-abbauen)).
 Er hat ein eigenes Verzeichnis, eigene Volumes und lauscht nur auf `127.0.0.1:3010`.
 
 | Dienst | Aufgabe |
@@ -78,9 +80,9 @@ Checkliste, Fallliste und fachliche Prüfhinweise: [docs/content/seed-cases-revi
 
 ## Host-nginx umstellen
 
-TLS bleibt beim Host-nginx (Cloudflare-Zertifikat). Geändert wird **nur** der `server { … }`-Block mit
-`server_name triage.plhuber.de;`. Der separate Block für `auth.plhuber.de` und die Authentik-Container bleiben
-unverändert.
+TLS bleibt beim Host-nginx (Cloudflare-Zertifikat). Geändert wird hier **nur** der `server { … }`-Block mit
+`server_name triage.plhuber.de;`. Der Block für `auth.plhuber.de` und die Authentik-Container werden **jetzt
+nicht** angefasst; sie werden erst im Abschnitt [Alten Stack abbauen](#alten-stack-abbauen) entfernt.
 
 **Nicht entfernen:** Vor dem `server`-Block stehen auf Dateiebene `set_real_ip_from …;` für alle IPv4- und
 IPv6-Bereiche von Cloudflare sowie `real_ip_header CF-Connecting-IP;`. Damit ist `$remote_addr` im Host-nginx die
@@ -89,10 +91,14 @@ Rate-Limit beim Login und die Sitzungsliste ab; ohne diese Zeilen landen alle Be
 Rate-Limit-Topf, und ein einzelner Angreifer sperrt den Login für alle. Diese Zeilen bei der Umstellung stehen
 lassen (und bei neuen Cloudflare-Bereichen nachpflegen).
 
-1. Konfiguration sichern (Pfad an den Server anpassen):
+1. Site-Datei ermitteln und sichern. Der Dateiname unterscheidet sich je nach Einrichtung (z. B. `manv-triage`
+   oder `triage.plhuber.de`); zuerst mit `ls -l /etc/nginx/sites-enabled/` prüfen und die Variable `SITE`
+   entsprechend setzen. Alle weiteren nginx-Befehle in diesem Dokument verwenden `$SITE`:
 
    ```sh
-   sudo cp /etc/nginx/sites-available/triage.plhuber.de /etc/nginx/sites-available/triage.plhuber.de.bak
+   ls -l /etc/nginx/sites-enabled/
+   SITE=/etc/nginx/sites-available/manv-triage   # Namen mit ls prüfen
+   sudo cp "$SITE" "$SITE.bak"
    ```
 
 2. Im `triage.plhuber.de`-Block alle bisherigen `location`-Blöcke entfernen, also `/api/`, `/api/admin/`,
@@ -117,11 +123,11 @@ lassen (und bei neuen Cloudflare-Bereichen nachpflegen).
    fehlenden Location `@authentik_login`. Restliche Fundstellen mit Zeilennummer anzeigen:
 
    ```sh
-   sudo grep -nE 'auth_request|authentik' /etc/nginx/sites-available/triage.plhuber.de
+   sudo grep -nE 'auth_request|authentik' "$SITE"
    ```
 
    Innerhalb des `triage.plhuber.de`-Blocks darf keine Fundstelle mehr liegen. Treffer im
-   `auth.plhuber.de`-Block (falls er in derselben Datei steht) bleiben unverändert.
+   `auth.plhuber.de`-Block (falls er in derselben Datei steht) bleiben vorerst unverändert.
 
 4. Prüfen und neu laden:
 
@@ -141,19 +147,108 @@ lassen (und bei neuen Cloudflare-Bereichen nachpflegen).
    oder eine `172.x`-Adresse, fehlen die `set_real_ip_from`/`real_ip_header`-Zeilen oder der `location`-Block
    setzt `X-Forwarded-For` nicht wie oben.
 
-Zurückrollen: `.bak` zurückkopieren (`sudo cp …bak …`), dann `sudo nginx -t && sudo systemctl reload nginx`.
-Der alte Stack läuft bis dahin weiter, sofern seine Container noch nicht gestoppt wurden.
-
-## Alte Container stoppen
-
-Erst wenn die neue Seite über `https://triage.plhuber.de` funktioniert:
+Zurückrollen: `.bak` zurückkopieren, dann neu laden:
 
 ```sh
-cd /opt/manv-triage
-docker compose stop frontend api
+sudo cp "$SITE.bak" "$SITE"
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**Nicht** stoppen: Postgres, Redis und Authentik in diesem Projekt. Authentik nutzt den alten Postgres-Container.
+Der alte Stack läuft bis dahin weiter, solange er noch nicht abgebaut wurde.
+
+## Alten Stack abbauen
+
+Der alte Stack in `/opt/manv-triage` (`frontend`, `api`, `postgres`, `redis`, `authentik-server`,
+`authentik-worker`) wird vollständig abgelöst, auch Authentik. Der Abbau ist ein Betreiber-Schritt auf dem
+Server und kein Teil des Deploy-Workflows. Nichts wird gelöscht, bevor das Archiv aus Schritt 2 existiert.
+
+1. Voraussetzung: Die neue Seite läuft seit der Umschaltung fehlerfrei über `https://triage.plhuber.de`, und der
+   Admin-Login funktioniert.
+
+2. Alten Postgres archivieren (alle Datenbanken, auch `authentik`). Die Zugangsdaten stehen in
+   `/opt/manv-triage/.env`; sie werden geladen, nicht von Hand getippt. Der Befehl bricht ab, wenn
+   `POSTGRES_USER` fehlt oder der Dump fehlschlägt (Bash):
+
+   ```sh
+   cd /opt/manv-triage
+   set -o pipefail
+   set -a; . ./.env; set +a
+   : "${POSTGRES_USER:?POSTGRES_USER fehlt in /opt/manv-triage/.env}"
+   ARCHIV=~/manv-triage-alt-$(date +%F).sql.gz
+   docker compose exec -T postgres pg_dumpall -U "$POSTGRES_USER" | gzip > "$ARCHIV"
+   chmod 600 "$ARCHIV"
+   ls -l "$ARCHIV"
+   gunzip -c "$ARCHIV" | head -n 3
+   gunzip -c "$ARCHIV" | grep -c 'CREATE DATABASE authentik'
+   ```
+
+   Die Datei muss deutlich größer als ein paar Dutzend Byte sein, `head` muss SQL-Zeilen zeigen (`--`, `SET …`)
+   und der letzte Befehl mindestens `1` ausgeben. Andernfalls nicht weitermachen. Die Datei enthält
+   Authentik-Nutzerdaten; sie gehört nur in dein Home-Verzeichnis, nicht ins Repository oder in einen Chat.
+
+3. Alten Stack stoppen und Container entfernen, die Volumes bleiben erhalten (**kein** `-v`):
+
+   ```sh
+   cd /opt/manv-triage
+   docker compose down
+   docker ps
+   ```
+
+   In `docker ps` dürfen nur noch die Container von `manv-triage-app-*` laufen.
+
+4. Host-nginx: die `auth.plhuber.de`-Server-Blöcke (HTTPS und der Port-80-Redirect) aus der Site-Datei entfernen.
+   Datei vorher sichern. `SITE` wie im Abschnitt Host-nginx setzen (in einer neuen Shell erneut). Die
+   dateiweiten `set_real_ip_from …;`-Zeilen und `real_ip_header CF-Connecting-IP;` bleiben stehen:
+
+   ```sh
+   sudo cp "$SITE" "$SITE.bak-auth"
+   sudoedit "$SITE"
+   ```
+
+   Danach darf es keine Fundstellen mehr geben (die Ausgabe muss leer sein), und nginx wird neu geladen:
+
+   ```sh
+   sudo grep -nE '9000|authentik|auth\.plhuber' "$SITE"
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+5. DNS: den Eintrag `auth.plhuber.de` im Cloudflare-Dashboard löschen (manuell).
+
+6. Zurückrollen bis hierhin: alten Stack wieder starten und die gesicherte nginx-Datei zurückspielen.
+
+   ```sh
+   cd /opt/manv-triage && docker compose up -d
+   sudo cp "$SITE.bak-auth" "$SITE"
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+   Der DNS-Eintrag aus Schritt 5 müsste in Cloudflare von Hand neu angelegt werden.
+
+7. Endgültig aufräumen erst nach einer Wartezeit (Empfehlung: 2 Wochen, in der nichts am neuen Stack auffällt).
+   Danach ist kein Rollback mehr möglich.
+
+   Volumes des alten Projekts ermitteln und entfernen. Die Liste prüfen: `manv-triage-app_*` gehört zum neuen
+   Stack und darf **nicht** gelöscht werden.
+
+   ```sh
+   docker volume ls | grep manv-triage_
+   docker volume rm manv-triage_postgres_data manv-triage_redis_data   # Namen aus der Liste übernehmen
+   ```
+
+   Alte Images auflisten und nur die nicht mehr genutzten entfernen:
+
+   ```sh
+   docker image ls | grep -E 'manv-triage-simulator:|goauthentik|redis'
+   docker image rm <IMAGE-ID>   # je nicht mehr genutztes Image
+   ```
+
+   Verzeichnis und Archiv löschen. Das Archiv enthält Authentik-Nutzerdaten und wird nach der Wartezeit
+   ebenfalls gelöscht (DSGVO); bis dahin sicher ablegen (nicht auf dem Server allein):
+
+   ```sh
+   sudo rm -rf /opt/manv-triage
+   shred -u ~/manv-triage-alt-*.sql.gz   # oder rm, falls shred nicht verfügbar
+   ```
 
 ## Updates
 
