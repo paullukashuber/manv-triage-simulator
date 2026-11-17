@@ -3,7 +3,15 @@ import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { z } from 'zod'
-import { createAuth, isRole, MIN_PASSWORD_LENGTH, ROLES, type Auth, type Role } from './auth/auth.ts'
+import {
+  createAuth,
+  isRole,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  ROLES,
+  type Auth,
+  type Role,
+} from './auth/auth.ts'
 import { loadConfig, type Config } from './config.ts'
 import { createDb, migrateDb, type Db } from './db/client.ts'
 
@@ -28,6 +36,11 @@ export function generatePassword(): string {
 
 class CliError extends Error {}
 
+/** parseArgs rejects unknown or malformed options with ERR_PARSE_ARGS_* errors. */
+function isParseArgsError(error: unknown): error is Error {
+  return error instanceof Error && 'code' in error && String(error.code).startsWith('ERR_PARSE_ARGS')
+}
+
 type Options = { email?: string; name?: string; role?: string; password?: string }
 
 function required(options: Options, key: keyof Options): string {
@@ -48,11 +61,14 @@ function role(options: Options): Role {
   return value
 }
 
-/** The given password (checked against the sign-in minimum) or a freshly generated one. */
+/** The given password (checked against the sign-in length limits) or a freshly generated one. */
 function password(options: Options, stdout: CliDeps['stdout']): string {
   if (options.password !== undefined) {
-    if (options.password.length < MIN_PASSWORD_LENGTH)
-      throw new CliError(`Das Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen lang sein.`)
+    const { length } = options.password
+    if (length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH)
+      throw new CliError(
+        `Das Passwort muss ${MIN_PASSWORD_LENGTH} bis ${MAX_PASSWORD_LENGTH} Zeichen lang sein (angegeben: ${length}).`,
+      )
     return options.password
   }
   const generated = generatePassword()
@@ -131,9 +147,7 @@ export async function runCli(argv: string[], { db, config, stdout }: CliDeps): P
     await handler(createAuth({ db, config }), values, stdout)
     return 0
   } catch (error) {
-    // parseArgs throws TypeErrors with a code for unknown or malformed options.
-    const isArgError = error instanceof TypeError && 'code' in error
-    if (!(error instanceof CliError) && !isArgError) throw error
+    if (!(error instanceof CliError) && !isParseArgsError(error)) throw error
     stdout(`Fehler: ${error.message}\n`)
     return 1
   }

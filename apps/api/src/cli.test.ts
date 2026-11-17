@@ -59,7 +59,8 @@ describe('runCli', () => {
     [['create-user', '--email', 'a@example.test', '--name', 'A']],
     [['create-user', '--email', 'a@example.test', '--role', 'trainee']],
     [['create-user', '--email', 'not-an-email', '--name', 'A', '--role', 'trainee']],
-    [['create-admin', '--email', 'a@example.test', '--name', 'A', '--password', 'short']],
+    [['create-admin', '--email', 'a@example.test', '--name', 'A', '--password', 'x'.repeat(9)]],
+    [['create-admin', '--email', 'a@example.test', '--name', 'A', '--password', 'x'.repeat(129)]],
     [['create-admin', '--email', 'a@example.test', '--name', 'A', '--bogus']],
     [['delete-everything']],
     [[]],
@@ -108,5 +109,32 @@ describe('runCli', () => {
 
   it('reset-password fails for an unknown email', async () => {
     expect(await run('reset-password', '--email', 'unknown@example.test', '--password', PW_NEW)).toBe(1)
+  })
+
+  it.each([['x'.repeat(9)], ['x'.repeat(129)]])('reset-password rejects the password %s and keeps the old one', async (pw) => {
+    await run('create-user', '--email', 'a@example.test', '--name', 'A', '--role', 'trainee', '--password', PW_OLD)
+    output = ''
+    expect(await run('reset-password', '--email', 'a@example.test', '--password', pw)).toBe(1)
+    expect(output).toMatch(/^Fehler: Das Passwort muss/)
+    expect((await signIn(app, 'a@example.test', PW_OLD)).statusCode).toBe(200)
+  })
+
+  it('accepts passwords of exactly 10 and 128 characters', async () => {
+    expect(await run('create-user', '--email', 'a@example.test', '--name', 'A', '--role', 'trainee', '--password', 'x'.repeat(10))).toBe(0)
+    expect(await run('reset-password', '--email', 'a@example.test', '--password', 'y'.repeat(128))).toBe(0)
+    expect((await signIn(app, 'a@example.test', 'y'.repeat(128))).statusCode).toBe(200)
+  })
+
+  it('rethrows unexpected errors instead of reporting them as input errors', async () => {
+    // A system error that happens to carry a Node error code must not be mistaken for a parseArgs error.
+    const failure = Object.assign(new TypeError('database exploded'), { code: 'ERR_INVALID_STATE' })
+    const brokenDb = new Proxy(deps.db, {
+      get() {
+        throw failure
+      },
+    })
+    const argv = ['set-role', '--email', 'a@example.test', '--role', 'admin']
+    await expect(runCli(argv, { ...deps, db: brokenDb, stdout: (s) => (output += s) })).rejects.toBe(failure)
+    expect(output).toBe('')
   })
 })

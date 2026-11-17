@@ -104,6 +104,84 @@ describe('authentication', () => {
       await prodApp.close()
     }
   })
+
+  // Production chain: Cloudflare → host nginx → web nginx container → api. The api sees
+  // "<client>, <docker gateway>"; a client-supplied leftmost entry must not matter.
+  it('rate-limits sign-in per client behind the proxy chain in production', async () => {
+    const prodDeps = { ...deps, config: { ...testConfig, nodeEnv: 'production' as const } }
+    const prodApp = await buildApp(prodDeps)
+    try {
+      prodApp.log.level = 'silent'
+      await runCli(
+        ['create-user', '--email', 't@example.test', '--name', 'T', '--role', 'trainer', '--password', TEST_PASSWORD],
+        { ...prodDeps, ...quiet },
+      )
+      const attempt = async (forwardedFor: string) =>
+        (
+          await prodApp.inject({
+            method: 'POST',
+            url: '/api/auth/sign-in/email',
+            headers: { 'x-forwarded-for': forwardedFor },
+            payload: { email: 't@example.test', password: testPassword() },
+          })
+        ).statusCode
+
+      for (let i = 0; i < 3; i++) expect(await attempt('203.0.113.1, 172.18.0.1')).toBe(401)
+      expect(await attempt('203.0.113.1, 172.18.0.1')).toBe(429)
+      expect(await attempt('203.0.113.2, 172.18.0.1')).toBe(401)
+      expect(await attempt('1.2.3.4, 203.0.113.1, 172.18.0.1')).toBe(429)
+    } finally {
+      await prodApp.close()
+    }
+  })
+})
+
+describe('privilege escalation through the auth API', () => {
+  let deps: AppDeps
+  let app: FastifyInstance
+  beforeEach(async () => {
+    deps = { db: await createTestDb(), config: testConfig }
+    app = await buildApp(deps)
+  })
+  afterEach(async () => {
+    await app.close()
+  })
+
+  const post = (url: string, payload: object, cookie?: string) =>
+    app.inject({
+      method: 'POST',
+      url,
+      headers: { origin: testConfig.publicUrl, ...(cookie ? { cookie } : {}) },
+      payload,
+    })
+  const roleOf = async (email: string) =>
+    (await deps.db.select({ role: user.role }).from(user).where(eq(user.email, email)))[0]?.role
+  const newAdmin = { email: 'evil@example.test', password: testPassword(), name: 'Evil', role: 'admin' }
+
+  it('answers 401 to anonymous admin calls', async () => {
+    expect((await post('/api/auth/admin/create-user', newAdmin)).statusCode).toBe(401)
+    expect((await post('/api/auth/admin/set-role', { userId: 'x', role: 'admin' })).statusCode).toBe(401)
+    expect(await roleOf('evil@example.test')).toBeUndefined()
+  })
+
+  it.each(['trainee', 'trainer'] as const)('answers 403 to admin calls by a %s', async (role) => {
+    const email = `${role}@example.test`
+    const cookie = await createUserAndLogin(app, deps, { email, role })
+    const [self] = await deps.db.select({ id: user.id }).from(user).where(eq(user.email, email))
+
+    expect((await post('/api/auth/admin/create-user', newAdmin, cookie)).statusCode).toBe(403)
+    expect((await post('/api/auth/admin/set-role', { userId: self!.id, role: 'admin' }, cookie)).statusCode).toBe(403)
+    expect(await roleOf('evil@example.test')).toBeUndefined()
+    expect(await roleOf(email)).toBe(role)
+  })
+
+  it('rejects a role change through update-user', async () => {
+    const cookie = await createUserAndLogin(app, deps, { email: 'tn@example.test', role: 'trainee' })
+    const res = await post('/api/auth/update-user', { role: 'admin' }, cookie)
+    expect(res.statusCode).toBeGreaterThanOrEqual(400)
+    expect(res.statusCode).toBeLessThan(500)
+    expect(await roleOf('tn@example.test')).toBe('trainee')
+  })
 })
 
 describe('requireRole', () => {

@@ -11,6 +11,10 @@ export const ROLES = ['trainee', 'trainer', 'admin'] as const
 export type Role = (typeof ROLES)[number]
 
 export const MIN_PASSWORD_LENGTH = 10
+export const MAX_PASSWORD_LENGTH = 128
+
+/** Loopback and private ranges: the docker network and the host-side proxies. */
+const TRUSTED_PROXIES = ['127.0.0.0/8', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7']
 
 export function isRole(value: unknown): value is Role {
   return (ROLES as readonly unknown[]).includes(value)
@@ -32,13 +36,24 @@ export function createAuth({ db, config }: { db: Db; config: Config }) {
     baseURL: config.publicUrl,
     secret: config.authSecret,
     trustedOrigins: [config.publicUrl],
-    emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: MIN_PASSWORD_LENGTH },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      maxPasswordLength: MAX_PASSWORD_LENGTH,
+    },
     advanced: {
       useSecureCookies: config.nodeEnv === 'production',
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
       // better-auth skips the origin/CSRF check under NODE_ENV=test; keep it on everywhere.
       disableOriginCheck: false,
+      // Requests arrive as Cloudflare → host nginx → web nginx container → api, each appending to
+      // X-Forwarded-For. Walk the chain from the right past these hops; the first other address is
+      // the client. Without this better-auth ignores multi-value headers and rate-limits everyone
+      // in one shared bucket.
+      ipAddress: { trustedProxies: TRUSTED_PROXIES },
     },
+    rateLimit: { enabled: config.nodeEnv === 'production' },
     plugins: [admin({ ac, roles, defaultRole: 'trainee', adminRoles: ['admin'] })],
     telemetry: { enabled: false },
     logger: { disabled: config.nodeEnv === 'test' },
