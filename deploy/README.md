@@ -184,8 +184,8 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
      ARCHIV=~/manv-triage-alt-$(date +%F).sql.gz
      docker compose exec -T postgres sh -c 'pg_dumpall -U "$POSTGRES_USER"' | gzip > "$ARCHIV"
      ls -l "$ARCHIV"
-     gunzip -c "$ARCHIV" | head -n 3
-     gunzip -c "$ARCHIV" | grep -qx -- '-- PostgreSQL database cluster dump complete'
+     gunzip -c "$ARCHIV" | sed -n '1,3p'
+     gunzip -c "$ARCHIV" | grep -x -- '-- PostgreSQL database cluster dump complete' >/dev/null
      GESAMT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -Atc "select count(*) from pg_database where not datistemplate"')
      test "$(gunzip -c "$ARCHIV" | grep -c '^CREATE DATABASE')" -eq "$((GESAMT - 1))"   # pg_dumpall legt `postgres` nicht an
      gunzip -c "$ARCHIV" | grep -c '^CREATE DATABASE authentik'
@@ -193,7 +193,7 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
    )
    ```
 
-   Ohne die Ausgabe `Archiv OK: …` nicht weitermachen. `head` muss SQL-Zeilen zeigen (`--`, `SET …`), und das
+   Ohne die Ausgabe `Archiv OK: …` nicht weitermachen. Die ersten Zeilen müssen SQL-Zeilen zeigen (`--`, `SET …`), und das
    Archiv muss die Zeile `-- PostgreSQL database cluster dump complete` enthalten (am Ende des Dumps). Das Archiv enthält
    Authentik-Nutzerdaten; es ist nur für den Besitzer lesbar und gehört nicht ins Repository oder in einen Chat.
    Eine Kopie gehört außerhalb des Servers abgelegt, z. B. auf einem Admin-Rechner:
@@ -206,7 +206,8 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
    Wenn gewünscht, vor dem Löschen in Schritt 7 mitsichern:
 
    ```sh
-   sudo tar czf ~/manv-triage-alt-dateien-$(date +%F).tar.gz -C /opt/manv-triage .env media custom-templates certs
+   T=~/manv-triage-alt-dateien-$(date +%F).tar.gz
+   sudo sh -c "umask 077; tar czf '$T' -C /opt/manv-triage .env media custom-templates certs; chown $(id -u):$(id -g) '$T'"
    ```
 
 3. Alten Stack stoppen und Container entfernen, die Volumes bleiben erhalten (**kein** `-v`):
@@ -234,7 +235,7 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
    wird neu geladen:
 
    ```sh
-   sudo grep -rnE '9000|authentik|auth\.plhuber|127\.0\.0\.1:300[01]' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/
+   sudo grep -RnE '9000|authentik|auth\.plhuber|127\.0\.0\.1:300[01]' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
