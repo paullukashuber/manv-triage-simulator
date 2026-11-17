@@ -16,6 +16,7 @@ void i18next.use(initReactI18next).init({
   resources: { de: { translation: de } },
   interpolation: { escapeValue: false },
   initAsync: false,
+  showSupportNotice: false,
 })
 
 export default i18next

@@ -1,6 +1,7 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ComponentProps } from 'react'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'yes' | 'no' | 'danger'
+export type ButtonSize = 'md' | 'sm'
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-accent text-bg',
@@ -10,13 +11,18 @@ const VARIANTS: Record<ButtonVariant, string> = {
   danger: 'bg-sk1 text-white',
 }
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }
+const SIZES: Record<ButtonSize, string> = {
+  md: 'w-full py-3.5 text-base',
+  sm: 'px-3 py-2 text-[0.85rem]',
+}
 
-export function Button({ variant = 'primary', className = '', type = 'button', ...rest }: ButtonProps) {
+type ButtonProps = ComponentProps<'button'> & { variant?: ButtonVariant; size?: ButtonSize }
+
+export function Button({ variant = 'primary', size = 'md', className = '', type = 'button', ...rest }: ButtonProps) {
   return (
     <button
       type={type}
-      className={`w-full py-3.5 font-bold text-base rounded-lg active:scale-[0.97] transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`font-bold rounded-lg active:scale-[0.97] transition-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   )

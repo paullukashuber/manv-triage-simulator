@@ -2,8 +2,10 @@ import { createBrowserRouter } from 'react-router'
 import { UsersPage } from './admin/UsersPage.tsx'
 import { LoginPage } from './auth/LoginPage.tsx'
 import { RequireRole } from './auth/RequireRole.tsx'
-import { EditorHomePage } from './editor/EditorHomePage.tsx'
+import { CaseEditPage } from './editor/CaseEditPage.tsx'
+import { CaseListPage } from './editor/CaseListPage.tsx'
 import { EditorLayout } from './editor/EditorLayout.tsx'
+import { EditorNotFound } from './editor/EditorNotFound.tsx'
 import { TrainingPage } from './training/TrainingPage.tsx'
 
 export const router = createBrowserRouter([
@@ -16,7 +18,12 @@ export const router = createBrowserRouter([
         <EditorLayout />
       </RequireRole>
     ),
-    children: [{ index: true, element: <EditorHomePage /> }],
+    children: [
+      { index: true, element: <CaseListPage /> },
+      { path: 'cases/new', element: <CaseEditPage /> },
+      { path: 'cases/:id', element: <CaseEditPage /> },
+      { path: '*', element: <EditorNotFound /> },
+    ],
   },
   {
     path: '/admin/users',

@@ -18,6 +18,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // Keeps the shared session store subscribed while on this page. After a sign-out it would otherwise hold a
+  // stale "no session" value that RequireRole reads before its own refetch, bouncing back to /login.
+  const { refetch: refetchSession } = authClient.useSession()
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -29,6 +32,7 @@ export function LoginPage() {
         setError(authError.status === 401 || authError.status === 400 ? t('auth.invalidCredentials') : t('auth.loginFailed'))
         return
       }
+      await refetchSession()
       await navigate(safeRedirect(params.get('redirect')), { replace: true })
     } catch {
       setError(t('auth.loginFailed'))

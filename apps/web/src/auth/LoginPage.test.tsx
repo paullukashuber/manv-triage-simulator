@@ -3,8 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ signInEmail: vi.fn() }))
-vi.mock('./auth-client.ts', () => ({ authClient: { signIn: { email: mocks.signInEmail } } }))
+const mocks = vi.hoisted(() => ({ signInEmail: vi.fn(), refetchSession: vi.fn() }))
+vi.mock('./auth-client.ts', () => ({
+  authClient: {
+    signIn: { email: mocks.signInEmail },
+    useSession: () => ({ data: null, isPending: false, refetch: mocks.refetchSession }),
+  },
+}))
 
 import { LoginPage } from './LoginPage.tsx'
 
@@ -31,7 +36,11 @@ async function fillAndSubmit() {
   await user.click(screen.getByRole('button', { name: 'Anmelden' }))
 }
 
-beforeEach(() => mocks.signInEmail.mockReset())
+beforeEach(() => {
+  mocks.signInEmail.mockReset()
+  mocks.refetchSession.mockReset()
+  mocks.refetchSession.mockResolvedValue(undefined)
+})
 
 describe('LoginPage', () => {
   it('shows an error when the credentials are wrong', async () => {
@@ -54,6 +63,18 @@ describe('LoginPage', () => {
     renderLogin('?redirect=/editor/cases/abc')
     await fillAndSubmit()
     await waitFor(() => expect(screen.getByText('now at /editor/cases/abc')).toBeInTheDocument())
+  })
+
+  it('waits for the session store to refetch before navigating', async () => {
+    let finishRefetch = () => {}
+    mocks.refetchSession.mockReturnValue(new Promise<void>((resolve) => (finishRefetch = resolve)))
+    mocks.signInEmail.mockResolvedValue({ data: { user: {} }, error: null })
+    renderLogin('?redirect=/editor')
+    await fillAndSubmit()
+    await waitFor(() => expect(mocks.refetchSession).toHaveBeenCalled())
+    expect(screen.queryByText('now at /editor')).not.toBeInTheDocument()
+    finishRefetch()
+    await waitFor(() => expect(screen.getByText('now at /editor')).toBeInTheDocument())
   })
 
   it('ignores external redirect targets', async () => {
