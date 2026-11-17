@@ -13,6 +13,7 @@
     "@fontsource/dm-sans": "^5.2.8",
     "@manv/triage": "*",
     "@tanstack/react-query": "^5.90.0",
+    "better-auth": "^1.7.25",
     "i18next": "^25.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

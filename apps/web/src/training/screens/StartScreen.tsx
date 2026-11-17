@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { BarrierTape } from '../../components/ui/BarrierTape.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { Card } from '../../components/ui/Card.tsx'
@@ -58,6 +59,11 @@ export function StartScreen({ status, onStart }: StartScreenProps) {
         <Button onClick={onStart} disabled={status === 'loading'}>
           {buttonLabel}
         </Button>
+        <p className="text-center mt-2">
+          <Link to="/login" className="text-[0.65rem] text-dim underline">
+            {t('auth.trainerLogin')}
+          </Link>
+        </p>
       </div>
     </>
   )
