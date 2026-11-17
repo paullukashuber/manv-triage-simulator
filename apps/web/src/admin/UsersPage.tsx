@@ -7,6 +7,7 @@ import { isRole, ROLES, toClientRole, type Role } from '../auth/roles.ts'
 import { UserMenu } from '../auth/UserMenu.tsx'
 import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
+import { authErrorKey } from './authErrors.ts'
 
 const INPUT_CLASS =
   'w-full bg-surface border border-border-light rounded-lg px-3 py-2 text-text focus:outline-2 focus:outline-accent'
@@ -14,12 +15,19 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const USERS_KEY = ['admin', 'users'] as const
 
 type ManagedUser = { id: string; name: string; email: string; role: Role }
-type AuthResult = { error: { message?: string } | null }
+type AuthResult = { error: { code?: unknown } | null }
 
-class AuthActionError extends Error {}
+/** A rejected better-auth call; `code` is the server's error code, its English message is dropped. */
+class AuthActionError extends Error {
+  readonly code: unknown
+  constructor(code: unknown) {
+    super(typeof code === 'string' ? code : 'auth_error')
+    this.code = code
+  }
+}
 
-function unwrap(result: AuthResult, fallback: string): void {
-  if (result.error) throw new AuthActionError(result.error.message || fallback)
+function unwrap(result: AuthResult): void {
+  if (result.error) throw new AuthActionError(result.error.code)
 }
 
 function validPassword(password: string): boolean {
@@ -32,11 +40,17 @@ export function UsersPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  /** German text for a failed call; `fallback` covers unknown codes and network errors. */
+  function errorText(error: Error, fallback: 'admin.errors.generic' | 'admin.loadError' = 'admin.errors.generic') {
+    const key = error instanceof AuthActionError ? authErrorKey(error.code) : null
+    return t(key ?? fallback)
+  }
+
   const users = useQuery({
     queryKey: USERS_KEY,
     queryFn: async (): Promise<ManagedUser[]> => {
       const result = await authClient.admin.listUsers({ query: { limit: 200 } })
-      if (result.error) throw new AuthActionError(result.error.message || t('admin.loadError'))
+      if (result.error) throw new AuthActionError(result.error.code)
       return result.data.users.map((user) => ({
         id: user.id,
         name: user.name,
@@ -56,23 +70,23 @@ export function UsersPage() {
         setMessage(successText)
         void queryClient.invalidateQueries({ queryKey: USERS_KEY })
       },
-      onError: (error: Error) => setActionError(error.message || t('admin.errors.generic')),
+      onError: (error: Error) => setActionError(errorText(error)),
     }
   }
 
   const createUser = useMutation({
     mutationFn: async (input: { name: string; email: string; password: string; role: Role }) =>
-      unwrap(await authClient.admin.createUser({ ...input, role: toClientRole(input.role) }), t('admin.errors.generic')),
+      unwrap(await authClient.admin.createUser({ ...input, role: toClientRole(input.role) })),
     ...report(t('admin.created')),
   })
   const setRole = useMutation({
     mutationFn: async (input: { userId: string; role: Role }) =>
-      unwrap(await authClient.admin.setRole({ userId: input.userId, role: toClientRole(input.role) }), t('admin.errors.generic')),
+      unwrap(await authClient.admin.setRole({ userId: input.userId, role: toClientRole(input.role) })),
     ...report(t('admin.roleChanged')),
   })
   const setPassword = useMutation({
     mutationFn: async (input: { userId: string; newPassword: string }) =>
-      unwrap(await authClient.admin.setUserPassword(input), t('admin.errors.generic')),
+      unwrap(await authClient.admin.setUserPassword(input)),
     ...report(t('admin.passwordChanged')),
   })
 
@@ -105,7 +119,7 @@ export function UsersPage() {
         )}
         {users.isError && (
           <p role="alert" className="text-[0.82rem] text-wrong">
-            {users.error.message || t('admin.loadError')}
+            {errorText(users.error, 'admin.loadError')}
           </p>
         )}
         {users.data && (
@@ -125,7 +139,9 @@ export function UsersPage() {
                     key={user.id}
                     user={user}
                     onRoleChange={(role) => setRole.mutate({ userId: user.id, role })}
-                    onPasswordSave={(newPassword) => setPassword.mutate({ userId: user.id, newPassword })}
+                    onPasswordSave={(newPassword, onSaved) =>
+                      setPassword.mutate({ userId: user.id, newPassword }, { onSuccess: onSaved })
+                    }
                   />
                 ))}
               </tbody>
@@ -134,7 +150,10 @@ export function UsersPage() {
         )}
       </Card>
 
-      <CreateUserForm pending={createUser.isPending} onCreate={(input) => createUser.mutate(input)} />
+      <CreateUserForm
+        pending={createUser.isPending}
+        onCreate={(input, onCreated) => createUser.mutate(input, { onSuccess: onCreated })}
+      />
     </div>
   )
 }
@@ -146,7 +165,8 @@ function UserRow({
 }: {
   user: ManagedUser
   onRoleChange: (role: Role) => void
-  onPasswordSave: (password: string) => void
+  /** `onSaved` runs only after the server accepted the password. */
+  onPasswordSave: (password: string, onSaved: () => void) => void
 }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
@@ -159,7 +179,11 @@ function UserRow({
       setError(t('admin.errors.passwordLength'))
       return
     }
-    onPasswordSave(password)
+    setError(null)
+    onPasswordSave(password, close)
+  }
+
+  function close() {
     setEditing(false)
     setPassword('')
     setError(null)
@@ -204,11 +228,7 @@ function UserRow({
               <Button
                 variant="secondary"
                 className="py-2 text-[0.82rem]"
-                onClick={() => {
-                  setEditing(false)
-                  setPassword('')
-                  setError(null)
-                }}
+                onClick={close}
               >
                 {t('admin.cancel')}
               </Button>
@@ -229,7 +249,8 @@ function CreateUserForm({
   onCreate,
 }: {
   pending: boolean
-  onCreate: (input: { name: string; email: string; password: string; role: Role }) => void
+  /** `onCreated` runs only after the server created the account. */
+  onCreate: (input: { name: string; email: string; password: string; role: Role }, onCreated: () => void) => void
 }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
@@ -246,10 +267,11 @@ function CreateUserForm({
     if (!validPassword(password)) found.push(t('admin.errors.passwordLength'))
     setErrors(found)
     if (found.length > 0) return
-    onCreate({ name: name.trim(), email: email.trim(), password, role })
-    setName('')
-    setEmail('')
-    setPassword('')
+    onCreate({ name: name.trim(), email: email.trim(), password, role }, () => {
+      setName('')
+      setEmail('')
+      setPassword('')
+    })
   }
 
   return (
