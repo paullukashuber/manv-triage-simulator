@@ -1,16 +1,14 @@
 # ManV Triage Simulator
 
-![Version](https://img.shields.io/badge/version-0.2-blue)
+![Version](https://img.shields.io/badge/version-0.3.0-blue)
 ![Status](https://img.shields.io/badge/status-prototype-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![GitHub Pages](https://img.shields.io/badge/demo-live-brightgreen?logo=github)
 
-> ⚠️ **Prototyp (v0.2)** – Dieses Projekt befindet sich in einer frühen Entwicklungsphase. Inhalte, Algorithmus-Logik und Darstellung können Fehler enthalten. Feedback und Fehlermeldungen sind willkommen – bitte als [Issue](../../issues) melden.
+> **Prototyp (v0.3.0)** – Dieses Projekt befindet sich in einer frühen Entwicklungsphase. Inhalte, Algorithmus-Logik und Darstellung können Fehler enthalten. Feedback und Fehlermeldungen sind willkommen – bitte als [Issue](../../issues) melden.
 
-Ein interaktiver, web-basierter Trainingssimulator für die **Patientensichtung beim Massenanfall von Verletzten (ManV)** nach dem **mSTaRT-Algorithmus**.
+Ein interaktiver, web-basierter Trainingssimulator für die **Patientensichtung beim Massenanfall von Verletzten (ManV)** nach dem **mSTaRT-Algorithmus** (VOR-Sichtung, Region Hannover).
 
-
-**[→ Live-Demo](https://paullukashuber.github.io/manv-triage-simulator/)**
+Zieladresse des Betriebs: **https://triage.plhuber.de**
 
 ---
 
@@ -20,66 +18,91 @@ Der Simulator ermöglicht es Helferinnen und Helfern im Rettungsdienst und Sanit
 
 ## Status
 
-🟡 **Prototyp v0.2** – Grundfunktionalität vorhanden, aber:
-- Fachliche Inhalte sind noch nicht abschließend geprüft
-- Es können Fehler in der Algorithmus-Logik auftreten
-- Szenarien werden noch erweitert
+**Version 0.3.0 – Rewrite (Prototyp)**
+- Neu aufgebaut als TypeScript-Monorepo mit API, Datenbank und Fall-Editor
+- Fälle bestehen nur aus Befunden; Kategorie und richtiger Weg durch den Algorithmus werden berechnet
+- Fachliche Inhalte sind noch nicht abschließend geprüft, die Seed-Fälle sind zunächst Entwürfe
 
 ## Features
 
-- ✅ Schritt-für-Schritt VOR-Sichtungsalgorithmus (Region Hannover)
-- ✅ 8 realistische Patientenszenarien in zufälliger Reihenfolge
-- ✅ Feedback nach abgeschlossener Sichtung mit Begründung
-- ✅ Fehleranalyse und Gesamtauswertung
-- ✅ Patientendaten durchgehend sichtbar während der Sichtung
-- ✅ Mobile-First Design mit Triage-Farbsystem
-- ✅ i18n-Vorbereitung (aktuell Deutsch, Englisch geplant)
+- Anonymes Training ohne Konto, Fälle in zufälliger Reihenfolge
+- Schritt-für-Schritt VOR-Sichtung mit Feedback und Begründung nach jedem Fall, Fehleranalyse und Gesamtauswertung
+- Sichtungslogik an genau einer Stelle (`packages/triage`), von API und Web gemeinsam genutzt und getestet
+- Fall-Editor für Ausbilder: Entwurf/Veröffentlicht, Revisionen, Live-Vorschau der berechneten Kategorie, Probelauf
+- Anmeldung mit Rollen (Admin, Ausbilder) und Benutzerverwaltung
+- Mobile-First Design mit Triage-Farbsystem, i18n-vorbereitet (aktuell Deutsch)
 
-## Schnellstart
+## Architektur
 
-**Option 1 – Live-Demo:**
-Einfach die [GitHub Pages Demo](https://paullukashuber.github.io/manv-triage-simulator/) öffnen.
-
-**Option 2 – Lokal entwickeln:**
-```bash
-git clone https://github.com/PaulLukasHuber/manv-triage-simulator.git
-cd manv-triage-simulator
-npm install
-npm run dev
 ```
+apps/
+├── api/             Fastify-REST-API, PostgreSQL (Drizzle), Authentifizierung, Seed, Admin-CLI
+└── web/             React-SPA: Training, Anmeldung, Fall-Editor, Benutzerverwaltung
+packages/
+└── triage/          Befunde, Sichtungsalgorithmus, Fall- und Auswertungslogik (geteilt)
+deploy/              Docker Compose (nginx + API + PostgreSQL + Backup), Betriebsanleitung
+docs/                Spezifikation, Pläne, Inhaltsprüfung
+```
+
+Der Browser spricht über nginx mit der API (`/api/`); der Algorithmus läuft in API und Web aus demselben Paket.
 
 ## Tech Stack
 
 | Schicht | Technologie |
 |---|---|
-| Framework | React 19 |
-| Build | Vite |
-| Styling | Tailwind CSS 4 |
-| State | useReducer (Custom Hook) |
-| Sprache | i18n-ready (src/i18n/) |
-| Deploy | GitHub Pages via GitHub Actions |
+| Sprache | TypeScript, npm Workspaces |
+| Frontend | React 19, Vite, Tailwind CSS 4, TanStack Query, react-i18next |
+| Backend | Fastify, Drizzle ORM, better-auth |
+| Datenbank | PostgreSQL 17 |
+| Geteilte Logik | `@manv/triage` (zod-Schemas, Algorithmus, Auswertung) |
+| Tests | Vitest (API-Tests mit PGlite) |
+| Betrieb | Docker Compose, GitHub Actions, GHCR |
 
-## Projektstruktur
+## Lokale Entwicklung
 
+Voraussetzungen: Node.js 22 oder neuer, Docker.
+
+```bash
+git clone https://github.com/PaulLukasHuber/manv-triage-simulator.git
+cd manv-triage-simulator
+docker compose -f deploy/docker-compose.dev.yml up -d db
+cp apps/api/.env.example apps/api/.env
+npm install
+npm run dev
 ```
-src/
-├── data/            Szenarien + Algorithmus-Schritte
-├── hooks/           useSimulator (zentrale State-Logik)
-├── screens/         5 Screen-Komponenten
-├── components/      9 wiederverwendbare UI-Komponenten
-├── i18n/            Sprachdateien (aktuell: Deutsch)
-└── utils/           Konstanten + Hilfsfunktionen
+
+`npm run dev` startet API und Web parallel. Beim Start führt die API Migrationen aus und legt die Seed-Fälle an
+(lokal mit `SEED_PUBLISH=true` direkt veröffentlicht). Einen Admin legt die CLI an:
+
+```bash
+cd apps/api && npx tsx --env-file=.env src/cli.ts create-admin --email admin@example.org --name "Name"
 ```
+
+## Tests und Qualitätssicherung
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+## Betrieb
+
+Docker-Compose-Stack, Ersteinrichtung, Backups und Updates: [deploy/README.md](deploy/README.md).
+Seed-Fälle prüfen und freigeben: [docs/content/seed-cases-review.md](docs/content/seed-cases-review.md).
 
 ## Roadmap
 
-- [ ] Mehr Szenarien (Ziel: 15–20)
+- [x] Fall-Editor für Ausbilder
+- [x] Datenbank statt fest eingebauter Szenarien
+- [ ] Konten für Teilnehmende mit Fortschritt und Lernfeldern (nächster Schritt, Phase 3)
+- [ ] Gruppen/Kurse für Ausbilder
 - [ ] Qualifikationswahl (SanH / RS / RA / NotSan)
 - [ ] Modus „Vollständige Sichtung" (ABCDE mit LSM-Entscheidungen)
 - [ ] Übungsmodus ManV-Lage (mehrere Patienten mit Zeitdruck)
 - [ ] Lernkarten / Algorithmus-Referenz
 - [ ] PWA / Offline-Fähigkeit
-- [ ] Szenario-Editor für Ausbilder
 - [ ] Englische Übersetzung
 
 ## Fachlicher Hintergrund

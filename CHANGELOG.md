@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] – 2026-11-17
+
+### Rewrite: TypeScript-Monorepo mit API, Datenbank und Fall-Editor
+
+- Neuer Aufbau als npm-Workspaces-Monorepo: `apps/api` (Fastify, PostgreSQL, Drizzle), `apps/web` (React 19, Vite, Tailwind CSS 4), `packages/triage` (geteilte Sichtungslogik)
+- Fälle werden nur noch als Befunde gespeichert; Kategorie und richtiger Weg durch den Algorithmus werden berechnet und per Tests abgesichert
+- 33 Seed-Fälle (18 überarbeitete Altfälle, 15 neue) als Entwurf; Prüfliste in `docs/content/seed-cases-review.md`
+- Fall-Editor für Ausbilder mit Entwurf/Veröffentlicht, Revisionen, Live-Vorschau und Probelauf
+- Anmeldung mit Rollen, Benutzerverwaltung und Admin-CLI
+- Anonymes Training ohne Konto weiterhin möglich
+- Betrieb über Docker Compose (nginx, API, PostgreSQL, tägliches Backup); CI und Deployment per GitHub Actions nach GHCR
+- Entfernt: GitHub-Pages-Deployment, „Fall einreichen“ (öffentliche Einreichung und Prüfung); alte Einreichungen werden nicht übernommen
+
 ## [0.2] – 2026-03-20
 
 ### Migration to React + Vite + Tailwind
