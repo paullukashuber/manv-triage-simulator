@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { eq } from 'drizzle-orm'
-import { user } from '../db/schema.ts'
+import { session, user } from '../db/schema.ts'
 import { buildApp, type AppDeps } from '../app.ts'
 import { createTestDb } from '../db/client.ts'
 import { testConfig } from '../test/setup.ts'
@@ -134,6 +134,38 @@ describe('authentication', () => {
       await prodApp.close()
     }
   })
+
+  // Host nginx restores the client from CF-Connecting-IP (set_real_ip_from + real_ip_header), so
+  // its $proxy_add_x_forwarded_for appends the client a second time after Cloudflare's own entry;
+  // the web nginx container then appends the docker gateway: "<client>, <client>, <gateway>".
+  // better-auth's memory rate-limit store is process-wide, so this test uses its own addresses.
+  it('rate-limits sign-in per client when host nginx restores the client address from Cloudflare', async () => {
+    const prodDeps = { ...deps, config: { ...testConfig, nodeEnv: 'production' as const } }
+    const prodApp = await buildApp(prodDeps)
+    try {
+      prodApp.log.level = 'silent'
+      await runCli(
+        ['create-user', '--email', 't@example.test', '--name', 'T', '--role', 'trainer', '--password', TEST_PASSWORD],
+        { ...prodDeps, ...quiet },
+      )
+      const attempt = async (forwardedFor: string) =>
+        (
+          await prodApp.inject({
+            method: 'POST',
+            url: '/api/auth/sign-in/email',
+            headers: { 'x-forwarded-for': forwardedFor },
+            payload: { email: 't@example.test', password: testPassword() },
+          })
+        ).statusCode
+
+      for (let i = 0; i < 3; i++) expect(await attempt('198.51.100.1, 198.51.100.1, 172.18.0.1')).toBe(401)
+      expect(await attempt('198.51.100.1, 198.51.100.1, 172.18.0.1')).toBe(429)
+      expect(await attempt('198.51.100.2, 198.51.100.2, 172.18.0.1')).toBe(401)
+      expect(await attempt('1.2.3.4, 198.51.100.1, 198.51.100.1, 172.18.0.1')).toBe(429)
+    } finally {
+      await prodApp.close()
+    }
+  })
 })
 
 describe('privilege escalation through the auth API', () => {
@@ -216,6 +248,41 @@ describe('requireRole', () => {
     expect(res.json()).toEqual({
       user: { id: expect.any(String), email: 'tr@example.test', name: 'Ausbilder', role: 'trainer' },
     })
+  })
+
+  it('forwards the refreshed session cookie once the session is past its update age', async () => {
+    const cookie = await createUserAndLogin(app, deps, { email: 'tr@example.test', role: 'trainer' })
+    // Default expiresIn is 7 days and updateAge 1 day: a session expiring in 5 days was last
+    // refreshed 2 days ago and must be extended on the next authenticated request.
+    const fiveDays = 5 * 24 * 60 * 60 * 1000
+    await deps.db.update(session).set({ expiresAt: new Date(Date.now() + fiveDays) })
+
+    const res = await app.inject({ method: 'GET', url: '/test/editor', headers: { cookie } })
+    expect(res.statusCode).toBe(200)
+    const refreshed = res.cookies.find((c) => c.name.endsWith('session_token'))
+    expect(refreshed).toMatchObject({ httpOnly: true, sameSite: 'Lax' })
+    expect(refreshed?.maxAge).toBeGreaterThan(6 * 24 * 60 * 60)
+    const [row] = await deps.db.select({ expiresAt: session.expiresAt }).from(session)
+    expect(row!.expiresAt.getTime()).toBeGreaterThan(Date.now() + fiveDays + 60 * 60 * 1000)
+  })
+
+  it('keeps other response cookies when forwarding the session cookie', async () => {
+    app.get('/test/cookie', { preHandler: requireRole('trainer') }, async (_req, reply) => {
+      reply.header('set-cookie', 'other=1; Path=/')
+      return { ok: true }
+    })
+    const cookie = await createUserAndLogin(app, deps, { email: 'tr@example.test', role: 'trainer' })
+    await deps.db.update(session).set({ expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) })
+
+    const res = await app.inject({ method: 'GET', url: '/test/cookie', headers: { cookie } })
+    expect(res.cookies.map((c) => c.name)).toEqual(expect.arrayContaining(['other', expect.stringMatching(/session_token$/)]))
+  })
+
+  it('sets no cookie on a fresh session', async () => {
+    const cookie = await createUserAndLogin(app, deps, { email: 'tr@example.test', role: 'trainer' })
+    const res = await app.inject({ method: 'GET', url: '/test/editor', headers: { cookie } })
+    expect(res.statusCode).toBe(200)
+    expect(res.cookies).toEqual([])
   })
 
   it('treats an unknown stored role as trainee', async () => {
