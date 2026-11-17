@@ -72,6 +72,7 @@ setzt `node dist/cli.js reset-password --email …` zurück.
 
 Die Seed-Fälle werden als Entwurf angelegt. Mit dem Admin-Konto anmelden, im Editor jeden Fall prüfen und
 veröffentlichen. Erst veröffentlichte Revisionen erscheinen im Training.
+Checkliste, Fallliste und fachliche Prüfhinweise: [docs/content/seed-cases-review.md](../docs/content/seed-cases-review.md).
 
 ## Host-nginx umstellen
 
