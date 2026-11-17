@@ -185,8 +185,8 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
      docker compose exec -T postgres sh -c 'pg_dumpall -U "$POSTGRES_USER"' | gzip > "$ARCHIV"
      ls -l "$ARCHIV"
      gunzip -c "$ARCHIV" | head -n 3
-     test "$(gunzip -c "$ARCHIV" | tail -n 1)" = '-- PostgreSQL database cluster dump complete'
-     GESAMT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -Atc "select count(*) from pg_database where not datistemplate"')
+     gunzip -c "$ARCHIV" | grep -qx -- '-- PostgreSQL database cluster dump complete'
+     GESAMT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -Atc "select count(*) from pg_database where not datistemplate"')
      test "$(gunzip -c "$ARCHIV" | grep -c '^CREATE DATABASE')" -eq "$((GESAMT - 1))"   # pg_dumpall legt `postgres` nicht an
      gunzip -c "$ARCHIV" | grep -c '^CREATE DATABASE authentik'
      echo "Archiv OK: $ARCHIV"
@@ -194,7 +194,7 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
    ```
 
    Ohne die Ausgabe `Archiv OK: …` nicht weitermachen. `head` muss SQL-Zeilen zeigen (`--`, `SET …`), und das
-   Archiv muss mit der Zeile `-- PostgreSQL database cluster dump complete` enden. Das Archiv enthält
+   Archiv muss die Zeile `-- PostgreSQL database cluster dump complete` enthalten (am Ende des Dumps). Das Archiv enthält
    Authentik-Nutzerdaten; es ist nur für den Besitzer lesbar und gehört nicht ins Repository oder in einen Chat.
    Eine Kopie gehört außerhalb des Servers abgelegt, z. B. auf einem Admin-Rechner:
 
