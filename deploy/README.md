@@ -62,9 +62,11 @@ Die Images liegen in der GitHub Container Registry. Sind sie privat, vorher einm
 docker compose exec api node dist/cli.js create-admin --email admin@example.org --name "Vorname Nachname"
 ```
 
-Das Passwort wird interaktiv abgefragt. Das braucht ein Terminal: Wer den Befehl direkt per SSH absetzt, muss
-`ssh -t user@server '…'` verwenden, sonst scheitert `docker compose exec` ohne TTY. Weitere Konten verwaltet der
-Admin danach in der Anwendung.
+Ohne `--password` erzeugt der Befehl ein zufälliges Passwort und gibt es genau einmal aus – sofort notieren.
+`--password …` ist möglich, landet aber in der Shell-History. `docker compose exec` will standardmäßig ein
+Terminal; wer den Befehl ohne TTY absetzt (z. B. per `ssh user@server '…'` oder in einem Skript), nimmt
+`docker compose exec -T`. Weitere Konten verwaltet der Admin danach in der Anwendung; ein vergessenes Passwort
+setzt `node dist/cli.js reset-password --email …` zurück.
 
 ## Fälle freigeben
 

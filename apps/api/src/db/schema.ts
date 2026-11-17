@@ -1,5 +1,8 @@
 import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
 import type { Findings } from '@manv/triage'
+import { user } from './auth-schema.ts'
+
+export * from './auth-schema.ts'
 
 export const cases = pgTable('cases', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -13,7 +16,7 @@ export const cases = pgTable('cases', {
   computedCategory: text('computed_category').notNull(),
   decisiveStep: text('decisive_step'),
   status: text('status').notNull().default('draft'),
-  authorId: text('author_id'),
+  authorId: text('author_id').references(() => user.id, { onDelete: 'set null' }),
   publishedRevisionId: uuid('published_revision_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -36,7 +39,7 @@ export const caseRevisions = pgTable(
     decisiveStep: text('decisive_step'),
     algorithmVersion: text('algorithm_version').notNull(),
     publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
-    publishedBy: text('published_by'),
+    publishedBy: text('published_by').references(() => user.id, { onDelete: 'set null' }),
   },
   (t) => [unique('case_revisions_case_id_revision_number_unique').on(t.caseId, t.revisionNumber)],
 )

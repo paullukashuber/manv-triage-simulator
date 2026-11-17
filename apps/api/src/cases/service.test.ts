@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { trainingCaseSchema } from '@manv/triage'
 import { createTestDb, type Db } from '../db/client.ts'
-import { caseRevisions, cases } from '../db/schema.ts'
+import { caseRevisions, cases, user } from '../db/schema.ts'
 import { caseInput } from './fixtures.ts'
 import {
   createCase,
@@ -15,6 +15,7 @@ describe('case service', () => {
   let db: Db
   beforeEach(async () => {
     db = await createTestDb()
+    await db.insert(user).values({ id: 'u1', name: 'Ausbilder', email: 'u1@example.test' })
   })
 
   it('createCase computes category and decisive step, status draft', async () => {
@@ -40,6 +41,16 @@ describe('case service', () => {
     expect(revs.map((r) => r.revisionNumber).sort()).toEqual([1, 2])
     const rev2 = revs.find((r) => r.revisionNumber === 2)
     expect(second.publishedRevisionId).toBe(rev2?.id)
+  })
+
+  it('deleting the author keeps case and revision with author/publisher set to null', async () => {
+    const c = await createCase(db, caseInput(), 'u1')
+    await publishCase(db, c.id, 'u1')
+    await db.delete(user).where(eq(user.id, 'u1'))
+    const [stored] = await db.select().from(cases).where(eq(cases.id, c.id))
+    expect(stored?.authorId).toBeNull()
+    const [rev] = await db.select().from(caseRevisions).where(eq(caseRevisions.caseId, c.id))
+    expect(rev?.publishedBy).toBeNull()
   })
 
   it('publishCase rejects a mismatching expected category and creates no revision', async () => {

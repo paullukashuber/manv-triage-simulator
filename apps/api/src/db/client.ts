@@ -34,7 +34,8 @@ export function resolveMigrationsFolder(moduleUrl: string): string {
 const migrationsFolder = () => resolveMigrationsFolder(import.meta.url)
 
 export function createDb(url: string): { db: Db; close(): Promise<void> } {
-  const client = postgres(url)
+  // Drop server NOTICEs (e.g. "schema drizzle already exists" on every migrate); errors still throw.
+  const client = postgres(url, { onnotice: () => undefined })
   const db = drizzlePostgres(client, { schema })
   migrators.set(db, (folder) => migratePostgres(db, { migrationsFolder: folder }))
   return { db, close: () => client.end() }
