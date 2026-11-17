@@ -31,7 +31,9 @@ Er hat ein eigenes Verzeichnis, eigene Volumes und lauscht nur auf `127.0.0.1:30
    openssl rand -base64 48   # Ausgabe als AUTH_SECRET eintragen
    ```
 
-   Die Platzhalter `CHANGE_ME` führen absichtlich zu einem Startfehler, bis sie ersetzt sind.
+   `POSTGRES_PASSWORD` und `AUTH_SECRET` sind in der Vorlage leer. Solange sie leer sind, bricht jedes
+   `docker compose`-Kommando absichtlich mit `POSTGRES_PASSWORD must be set in .env` bzw.
+   `AUTH_SECRET must be set in .env` ab.
 
    | Variable | Bedeutung |
    |---|---|
@@ -80,6 +82,13 @@ TLS bleibt beim Host-nginx (Cloudflare-Zertifikat). Geändert wird **nur** der `
 `server_name triage.plhuber.de;`. Der separate Block für `auth.plhuber.de` und die Authentik-Container bleiben
 unverändert.
 
+**Nicht entfernen:** Vor dem `server`-Block stehen auf Dateiebene `set_real_ip_from …;` für alle IPv4- und
+IPv6-Bereiche von Cloudflare sowie `real_ip_header CF-Connecting-IP;`. Damit ist `$remote_addr` im Host-nginx die
+echte Client-Adresse und nicht die eines Cloudflare-Knotens. Die API leitet daraus die Client-IP für das
+Rate-Limit beim Login und die Sitzungsliste ab; ohne diese Zeilen landen alle Besucher in einem gemeinsamen
+Rate-Limit-Topf, und ein einzelner Angreifer sperrt den Login für alle. Diese Zeilen bei der Umstellung stehen
+lassen (und bei neuen Cloudflare-Bereichen nachpflegen).
+
 1. Konfiguration sichern (Pfad an den Server anpassen):
 
    ```sh
@@ -102,11 +111,35 @@ unverändert.
 
    `listen`, `server_name`, Zertifikate und sonstige Einstellungen des Blocks bleiben.
 
-3. Prüfen und neu laden:
+3. Authentik-Reste auf Server-Ebene des `triage.plhuber.de`-Blocks entfernen, falls vorhanden: alle Zeilen
+   `auth_request …;`, `auth_request_set …;` und `error_page 401 = @authentik_login;` außerhalb der
+   `location`-Blöcke. Sie verweisen auf die eben gelöschten Locations; `nginx -t` scheitert sonst an der
+   fehlenden Location `@authentik_login`. Restliche Fundstellen mit Zeilennummer anzeigen:
+
+   ```sh
+   sudo grep -nE 'auth_request|authentik' /etc/nginx/sites-available/triage.plhuber.de
+   ```
+
+   Innerhalb des `triage.plhuber.de`-Blocks darf keine Fundstelle mehr liegen. Treffer im
+   `auth.plhuber.de`-Block (falls er in derselben Datei steht) bleiben unverändert.
+
+4. Prüfen und neu laden:
 
    ```sh
    sudo nginx -t && sudo systemctl reload nginx
    ```
+
+5. Nach der Umstellung prüfen, dass die API echte Client-Adressen sieht: im Browser als Ausbilder anmelden,
+   dann auf dem Server
+
+   ```sh
+   cd /opt/manv-triage-app
+   docker compose exec db psql -U manv manv -c 'select ip_address, created_at from session order by created_at desc limit 5;'
+   ```
+
+   Die neueste Zeile muss die öffentliche IP des eigenen Anschlusses zeigen. Steht dort eine Cloudflare-Adresse
+   oder eine `172.x`-Adresse, fehlen die `set_real_ip_from`/`real_ip_header`-Zeilen oder der `location`-Block
+   setzt `X-Forwarded-For` nicht wie oben.
 
 Zurückrollen: `.bak` zurückkopieren (`sudo cp …bak …`), dann `sudo nginx -t && sudo systemctl reload nginx`.
 Der alte Stack läuft bis dahin weiter, sofern seine Container noch nicht gestoppt wurden.
