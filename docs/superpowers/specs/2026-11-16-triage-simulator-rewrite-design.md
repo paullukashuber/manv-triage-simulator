@@ -35,7 +35,7 @@ Der Rewrite soll:
 - Weitere Algorithmen/Regionen, „vollständige Sichtung“ (ABCDE mit LSM), ManV-Lage mit Zeitdruck (Roadmap, nicht Teil dieses Rewrites).
 - Englische Übersetzung (i18n wird aber echt vorbereitet).
 - Die alte Funktion „Fall einreichen“ (öffentliche Einreichung + Prüfung) entfällt; alte Einreichungen werden nicht übernommen.
-- Anbindung an Authentik (siehe 13).
+- Authentik: wird nicht mehr benötigt und mit dem alten Stack abgebaut (siehe 13).
 - PWA/Offline.
 
 **Anti-Ziele (wäre ein Fehlschlag, selbst wenn es technisch läuft)**
@@ -87,17 +87,22 @@ docs/
 
 Konfiguration über `.env` auf dem Server (DB-Passwort, Auth-Secret, öffentliche URL, optional SMTP).
 
-**Neben dem alten Stack, nicht an seiner Stelle.** Auf dem Server laufen heute der alte Simulator und
-Authentik (`auth.plhuber.de`); Authentik legt seine Datenbank in den **alten** Postgres-Container.
-Der neue Stack bekommt deshalb ein eigenes Verzeichnis, einen eigenen Compose-Projektnamen
-(`manv-triage-app`), ein eigenes Postgres-Volume und eigene Ports. Der alte Postgres, Redis und Authentik
-werden nicht angefasst.
+**Der neue Stack löst den alten ab** (Stand 2026-11-17, siehe 13). Auf dem Server laufen heute der alte
+Simulator und Authentik (`auth.plhuber.de`) in `/opt/manv-triage`; der Betreiber hat Zugriff auf alle Container,
+und Authentik wird nicht mehr gebraucht. *(Eigene Entscheidung:)* Der neue Stack bleibt trotzdem in einem
+eigenen Verzeichnis `/opt/manv-triage-app` mit eigenem Compose-Projekt (`manv-triage-app`), eigenem
+Postgres-Volume und Port `127.0.0.1:3010`. So kann er hochfahren und geprüft werden, während der alte noch
+läuft, die Umschaltung ist eine nginx-Zeile, und ein `--remove-orphans` des neuen Projekts kann nie alte
+Container treffen. Nach der Umschaltung wird der **komplette alte Stack abgebaut**: `frontend`, `api`,
+`postgres`, `redis`, `authentik-server`, `authentik-worker`, der `auth.plhuber.de`-Block im Host-nginx und
+der zugehörige DNS-Eintrag. Vorher wird der alte Postgres (enthält nur Authentik-Daten und alte
+Einreichungen) einmal als Archiv gesichert; die alten Volumes löscht der Betreiber erst nach einer Wartezeit.
 
 TLS terminiert vor `web`: Der Host-nginx mit Cloudflare-Zertifikat bleibt. `web` lauscht auf
 `127.0.0.1:3010` und leitet `/api` selbst weiter. Zur Umschaltung zeigt der Host-nginx für
 `triage.plhuber.de` nur noch mit `location /` auf `:3010`; die alten `/api/`- und `/admin`-Blöcke
-entfallen. Das ist ein einmaliger manueller Schritt auf dem Server (siehe 13), ebenso das spätere
-Stoppen der alten `frontend`- und `api`-Container.
+entfallen, ebenso alle Authentik-Zeilen. Das ist ein einmaliger manueller Schritt auf dem Server (siehe 13),
+ebenso der anschließende Abbau des alten Stacks.
 
 ### 5.3 CI/CD
 
@@ -262,10 +267,10 @@ Vorbereitet für später, aber **nicht gebaut**: `groups`, `group_members` (mit 
 
 ## 13. Antworten des Betreibers und Folgen
 
-- **Authentik und der alte Simulator laufen noch.** → Neuer Stack läuft daneben (5.2).
-  *(Eigene Entscheidung:)* Die App nutzt **eigene Konten** (better-auth) statt Authentik: Teilnehmende sollen sich
-  selbst in der App registrieren, und ein zweites Login-System nur für Ausbilder lohnt nicht. Eine spätere
-  Anmeldung über Authentik (OIDC) bleibt möglich.
+- **Authentik und der alte Simulator laufen noch.** Korrektur 2026-11-17: Der Betreiber kann alle alten
+  Container steuern und ersetzen, **Authentik wird nicht mehr benötigt.** → Neuer Stack wird neben dem alten
+  hochgefahren, danach wird der alte Stack inkl. Authentik vollständig abgebaut (5.2).
+  Die App nutzt **eigene Konten** (better-auth): Teilnehmende sollen sich selbst in der App registrieren.
 - **„Fall einreichen“ entfällt**, alte Einreichungen werden nicht übernommen.
 - **Kein Mailserver vorhanden.** → *(Eigene Entscheidung:)* SMTP ist optional per `.env`. Ohne SMTP: keine
   E-Mail-Bestätigung, Passwort-Reset nur durch Admin per CLI. Für Phase 3 (Selbstregistrierung) wird ein
@@ -273,4 +278,12 @@ Vorbereitet für später, aber **nicht gebaut**: `groups`, `group_members` (mit 
 - **Fälle darf Claude überarbeiten und ergänzen, Freigabe durch den Betreiber im Editor.** → Seed als `draft` (9).
 
 **Manuelle Schritte auf dem Server (Betreiber):** Verzeichnis + `.env` für `manv-triage-app` anlegen,
-ersten Admin per CLI anlegen, Fälle freigeben, Host-nginx auf `:3010` umstellen, alte Container stoppen.
+ersten Admin per CLI anlegen, Fälle freigeben, Host-nginx auf `:3010` umstellen, alten Postgres archivieren,
+alten Stack (inkl. Authentik, Redis) abbauen, `auth.plhuber.de`-Block und DNS-Eintrag entfernen, nach einer
+Wartezeit alte Volumes, Images und `/opt/manv-triage` löschen.
+
+**Ansätze für die Ablösung** (2026-11-17): (a) neues Verzeichnis + Port 3010, alter Stack danach abbauen
+(gewählt: Prüfen vor dem Umschalten, Rollback = nginx-Zeile zurück, keine Kollision von Projektnamen/`.env`);
+(b) neuer Stack direkt in `/opt/manv-triage` mit Port 3000 (spart eine nginx-Änderung, aber Downtime, gleiches
+Compose-Projekt würde alte Container per `--remove-orphans` beim ersten automatischen Deploy ungesichert
+entfernen, und die alte `.env` mischt sich mit der neuen).
