@@ -1,6 +1,13 @@
 import { z } from 'zod'
-import { findingsSchema } from './findings.ts'
-import { categorySchema, learningFieldSchema } from './steps.ts'
+import { findingsSchema, type Findings } from './findings.ts'
+import {
+  categorySchema,
+  learningFieldSchema,
+  STEP_KEYS,
+  type Category,
+  type LearningField,
+  type StepKey,
+} from './steps.ts'
 
 const text = z.string().trim().min(10).max(4000)
 
@@ -33,3 +40,39 @@ export const trainingCaseSchema = z.object({
 })
 
 export type TrainingCase = z.infer<typeof trainingCaseSchema>
+
+export const CASE_STATUSES = ['draft', 'published', 'archived'] as const
+export type CaseStatus = (typeof CASE_STATUSES)[number]
+
+/** Editor view of a case (working copy plus publication state). Dates are ISO strings. */
+export type CaseDetail = {
+  id: string
+  slug: string | null
+  description: string
+  reasoning: string
+  findings: Findings
+  expectedCategory: Category
+  focusFields: LearningField[]
+  tags: string[]
+  computedCategory: Category
+  decisiveStep: StepKey | null
+  status: CaseStatus
+  publishedRevisionNumber: number | null
+  hasUnpublishedChanges: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type CaseSummary = Omit<CaseDetail, 'reasoning' | 'findings'>
+
+export const caseFilterSchema = z
+  .object({
+    status: z.enum(CASE_STATUSES).optional(),
+    category: categorySchema.optional(),
+    decisiveStep: z.union([z.enum(STEP_KEYS), z.literal('none')]).optional(),
+    tag: z.string().trim().min(1).max(40).optional(),
+    q: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict()
+
+export type CaseFilter = z.infer<typeof caseFilterSchema>

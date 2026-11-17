@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { createAuth } from './auth/auth.ts'
 import { registerAuthRoutes } from './auth/routes.ts'
 import type { Config } from './config.ts'
+import { registerEditorRoutes } from './cases/editor-routes.ts'
 import { registerTrainingRoutes } from './cases/training-routes.ts'
 import type { Db } from './db/client.ts'
 
@@ -18,6 +19,7 @@ export async function buildApp({ db, config }: AppDeps): Promise<FastifyInstance
   app.get('/api/health', async () => ({ status: 'ok' }))
 
   registerTrainingRoutes(app, db)
+  await registerEditorRoutes(app, db, config)
 
   return app
 }
