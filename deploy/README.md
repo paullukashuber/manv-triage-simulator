@@ -93,7 +93,9 @@ lassen (und bei neuen Cloudflare-Bereichen nachpflegen).
 
 1. Site-Datei ermitteln und sichern. Der Dateiname unterscheidet sich je nach Einrichtung (z. B. `manv-triage`
    oder `triage.plhuber.de`); zuerst mit `ls -l /etc/nginx/sites-enabled/` prüfen und die Variable `SITE`
-   entsprechend setzen. Alle weiteren nginx-Befehle in diesem Dokument verwenden `$SITE`:
+   entsprechend setzen. `SITE` muss die echte Datei unter `sites-available` sein (nicht der Symlink in
+   `sites-enabled`); Sicherungskopien dürfen nicht in `sites-enabled` liegen, und `sudoedit` lehnt Symlinks ab.
+   Alle weiteren nginx-Befehle in diesem Dokument verwenden `$SITE`:
 
    ```sh
    ls -l /etc/nginx/sites-enabled/
@@ -162,53 +164,77 @@ Der alte Stack in `/opt/manv-triage` (`frontend`, `api`, `postgres`, `redis`, `a
 `authentik-worker`) wird vollständig abgelöst, auch Authentik. Der Abbau ist ein Betreiber-Schritt auf dem
 Server und kein Teil des Deploy-Workflows. Nichts wird gelöscht, bevor das Archiv aus Schritt 2 existiert.
 
+Rollback: Bis einschließlich Schritt 2 ändert sich nichts. Nach Schritt 3 braucht ein vollständiger Rollback zum
+alten Simulator `docker compose up -d` in `/opt/manv-triage` plus die gesicherte nginx-Datei (`$SITE.bak`, ab
+Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
+
 1. Voraussetzung: Die neue Seite läuft seit der Umschaltung fehlerfrei über `https://triage.plhuber.de`, und der
    Admin-Login funktioniert.
 
-2. Alten Postgres archivieren (alle Datenbanken, auch `authentik`). Die Zugangsdaten stehen in
-   `/opt/manv-triage/.env`; sie werden geladen, nicht von Hand getippt. Der Befehl bricht ab, wenn
-   `POSTGRES_USER` fehlt oder der Dump fehlschlägt (Bash):
+2. Alten Postgres archivieren (alle Datenbanken, auch `authentik`). Der Dump läuft im Postgres-Container, der
+   Benutzername kommt aus dessen eigener Umgebung; `.env` wird nicht in die Shell geladen (sonst blieben alte
+   Zugangsdaten exportiert und würden bei einem späteren `docker compose` im neuen Verzeichnis Vorrang vor
+   dessen `.env` haben). Der Block läuft in einer Subshell und bricht bei jedem Fehler ab (Bash):
 
    ```sh
    cd /opt/manv-triage
-   set -o pipefail
-   set -a; . ./.env; set +a
-   : "${POSTGRES_USER:?POSTGRES_USER fehlt in /opt/manv-triage/.env}"
-   ARCHIV=~/manv-triage-alt-$(date +%F).sql.gz
-   docker compose exec -T postgres pg_dumpall -U "$POSTGRES_USER" | gzip > "$ARCHIV"
-   chmod 600 "$ARCHIV"
-   ls -l "$ARCHIV"
-   gunzip -c "$ARCHIV" | head -n 3
-   gunzip -c "$ARCHIV" | grep -c 'CREATE DATABASE authentik'
+   (
+     set -euo pipefail
+     umask 077
+     ARCHIV=~/manv-triage-alt-$(date +%F).sql.gz
+     docker compose exec -T postgres sh -c 'pg_dumpall -U "$POSTGRES_USER"' | gzip > "$ARCHIV"
+     ls -l "$ARCHIV"
+     gunzip -c "$ARCHIV" | head -n 3
+     test "$(gunzip -c "$ARCHIV" | tail -n 1)" = '-- PostgreSQL database cluster dump complete'
+     GESAMT=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -Atc "select count(*) from pg_database where not datistemplate"')
+     test "$(gunzip -c "$ARCHIV" | grep -c '^CREATE DATABASE')" -eq "$((GESAMT - 1))"   # pg_dumpall legt `postgres` nicht an
+     gunzip -c "$ARCHIV" | grep -c '^CREATE DATABASE authentik'
+     echo "Archiv OK: $ARCHIV"
+   )
    ```
 
-   Die Datei muss deutlich größer als ein paar Dutzend Byte sein, `head` muss SQL-Zeilen zeigen (`--`, `SET …`)
-   und der letzte Befehl mindestens `1` ausgeben. Andernfalls nicht weitermachen. Die Datei enthält
-   Authentik-Nutzerdaten; sie gehört nur in dein Home-Verzeichnis, nicht ins Repository oder in einen Chat.
+   Ohne die Ausgabe `Archiv OK: …` nicht weitermachen. `head` muss SQL-Zeilen zeigen (`--`, `SET …`), und das
+   Archiv muss mit der Zeile `-- PostgreSQL database cluster dump complete` enden. Das Archiv enthält
+   Authentik-Nutzerdaten; es ist nur für den Besitzer lesbar und gehört nicht ins Repository oder in einen Chat.
+   Eine Kopie gehört außerhalb des Servers abgelegt, z. B. auf einem Admin-Rechner:
+
+   ```sh
+   scp "$USER@SERVER:manv-triage-alt-*.sql.gz" .
+   ```
+
+   Nicht im Archiv enthalten sind `.env` und die Authentik-Bind-Mounts (`media`, `custom-templates`, `certs`).
+   Wenn gewünscht, vor dem Löschen in Schritt 7 mitsichern:
+
+   ```sh
+   sudo tar czf ~/manv-triage-alt-dateien-$(date +%F).tar.gz -C /opt/manv-triage .env media custom-templates certs
+   ```
 
 3. Alten Stack stoppen und Container entfernen, die Volumes bleiben erhalten (**kein** `-v`):
 
    ```sh
    cd /opt/manv-triage
    docker compose down
-   docker ps
+   docker ps --filter label=com.docker.compose.project=manv-triage
    ```
 
-   In `docker ps` dürfen nur noch die Container von `manv-triage-app-*` laufen.
+   Die Ausgabe von `docker ps` muss leer sein (nur die Kopfzeile). Andere Container auf dem Host, auch
+   `manv-triage-app-*`, laufen weiter.
 
 4. Host-nginx: die `auth.plhuber.de`-Server-Blöcke (HTTPS und der Port-80-Redirect) aus der Site-Datei entfernen.
    Datei vorher sichern. `SITE` wie im Abschnitt Host-nginx setzen (in einer neuen Shell erneut). Die
-   dateiweiten `set_real_ip_from …;`-Zeilen und `real_ip_header CF-Connecting-IP;` bleiben stehen:
+   dateiweiten `set_real_ip_from …;`-Zeilen und `real_ip_header CF-Connecting-IP;` bleiben stehen. Listet eine
+   `server_name`-Zeile beide Hosts, nur den Namen `auth.plhuber.de` entfernen, nicht den ganzen Block:
 
    ```sh
    sudo cp "$SITE" "$SITE.bak-auth"
    sudoedit "$SITE"
    ```
 
-   Danach darf es keine Fundstellen mehr geben (die Ausgabe muss leer sein), und nginx wird neu geladen:
+   Danach darf es in keiner eingebundenen Konfiguration Fundstellen geben (die Ausgabe muss leer sein), und nginx
+   wird neu geladen:
 
    ```sh
-   sudo grep -nE '9000|authentik|auth\.plhuber' "$SITE"
+   sudo grep -rnE '9000|authentik|auth\.plhuber|127\.0\.0\.1:300[01]' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
@@ -222,7 +248,8 @@ Server und kein Teil des Deploy-Workflows. Nichts wird gelöscht, bevor das Arch
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
-   Der DNS-Eintrag aus Schritt 5 müsste in Cloudflare von Hand neu angelegt werden.
+   Für den alten Simulator ohne Authentik-Umbau stattdessen `$SITE.bak` zurückspielen. Der DNS-Eintrag aus
+   Schritt 5 müsste in Cloudflare von Hand neu angelegt werden.
 
 7. Endgültig aufräumen erst nach einer Wartezeit (Empfehlung: 2 Wochen, in der nichts am neuen Stack auffällt).
    Danach ist kein Rollback mehr möglich.
@@ -235,19 +262,27 @@ Server und kein Teil des Deploy-Workflows. Nichts wird gelöscht, bevor das Arch
    docker volume rm manv-triage_postgres_data manv-triage_redis_data   # Namen aus der Liste übernehmen
    ```
 
-   Alte Images auflisten und nur die nicht mehr genutzten entfernen:
+   Alte Images auflisten und nur die nicht mehr genutzten entfernen. Zum neuen Stack gehören
+   `manv-triage-simulator-web`, `manv-triage-simulator-api` und `postgres:17-alpine`; sie bleiben:
 
    ```sh
-   docker image ls | grep -E 'manv-triage-simulator:|goauthentik|redis'
+   docker image ls --format '{{.Repository}}:{{.Tag}}\t{{.ID}}' | grep -E 'manv-triage-(frontend|api)|manv-triage-simulator:|goauthentik|redis|postgres:16'
    docker image rm <IMAGE-ID>   # je nicht mehr genutztes Image
    ```
 
-   Verzeichnis und Archiv löschen. Das Archiv enthält Authentik-Nutzerdaten und wird nach der Wartezeit
-   ebenfalls gelöscht (DSGVO); bis dahin sicher ablegen (nicht auf dem Server allein):
+   Verzeichnis zuerst ansehen, dann löschen:
 
    ```sh
+   ls -la /opt/manv-triage
    sudo rm -rf /opt/manv-triage
-   shred -u ~/manv-triage-alt-*.sql.gz   # oder rm, falls shred nicht verfügbar
+   ```
+
+   Danach alle Kopien des Archivs (und ggf. des Datei-Archivs) löschen, auch auf dem Admin-Rechner (DSGVO, sie
+   enthalten Authentik-Nutzerdaten). `rm` überschreibt keine Daten; wirkliche Unwiederbringlichkeit gibt es auf
+   SSDs und Backups nicht, daher die Kopien gar nicht erst breit verteilen:
+
+   ```sh
+   rm ~/manv-triage-alt-*.sql.gz ~/manv-triage-alt-dateien-*.tar.gz
    ```
 
 ## Updates
