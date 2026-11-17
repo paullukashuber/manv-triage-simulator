@@ -7,7 +7,7 @@ import { router } from './routes.tsx'
 const queryClient = createAppQueryClient(() => {
   authClient.$store.notify('$sessionSignal')
   const { pathname, search } = window.location
-  void router.navigate(loginUrlFor(pathname, search))
+  void router.navigate(loginUrlFor(pathname, search), { replace: true })
 })
 
 export function App() {
