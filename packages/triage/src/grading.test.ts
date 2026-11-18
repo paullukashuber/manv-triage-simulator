@@ -10,7 +10,8 @@ const allNo = (): RunAnswer[] => STEP_KEYS.map((key) => a(key, false))
 describe('gradeRun', () => {
   it('grades a correct run', () => {
     const r = gradeRun(with_({ ambulatory: true }), [a('tourniquet', false), a('ambulatory', true)])
-    expect(r.isCorrect).toBe(true)
+    expect(r.verdict).toBe('correct')
+    expect(r.categoryCorrect).toBe(true)
     expect(r.userCategory).toBe('white')
     expect(r.stepResults.every((s) => s.isCorrect)).toBe(true)
     expect(r.stoppedEarly).toBe(false)
@@ -21,7 +22,8 @@ describe('gradeRun', () => {
     const r = gradeRun(with_({ respiratoryRate: 34 }), [a('tourniquet', false), a('ambulatory', true)])
     expect(r.userCategory).toBe('white')
     expect(r.correctCategory).toBe('red')
-    expect(r.isCorrect).toBe(false)
+    expect(r.verdict).toBe('wrong')
+    expect(r.categoryCorrect).toBe(false)
     expect(r.stoppedEarly).toBe(true)
     expect(r.stepResults[1]?.errorType).toBe('overcalled')
   })
@@ -52,6 +54,42 @@ describe('gradeRun', () => {
     expect(r.userCategory).toBe('red')
     expect(r.stoppedEarly).toBe(true)
     expect(r.passedDecisiveStep).toBe(false)
+  })
+
+  it('gives "wrongPath" when an early yes lands on the right category', () => {
+    // Decisive step is C (no radial pulse), but "yes" at X also yields red.
+    const r = gradeRun(with_({ radialPulsePalpable: false }), [a('tourniquet', true)])
+    expect(r.correctCategory).toBe('red')
+    expect(r.userCategory).toBe('red')
+    expect(r.categoryCorrect).toBe(true)
+    expect(r.verdict).toBe('wrongPath')
+  })
+
+  it('gives "wrongPath" when a later yes lands on the right category after missing the decisive step', () => {
+    const findings = with_({ inhalationTraumaStridor: true, radialPulsePalpable: false })
+    const answers = [...STEP_KEYS.slice(0, STEP_KEYS.indexOf('noRadialPulse')).map((k) => a(k, false)), a('noRadialPulse', true)]
+    const r = gradeRun(findings, answers)
+    expect(r.decisiveStep).toBe('stridor')
+    expect(r.userCategory).toBe('red')
+    expect(r.verdict).toBe('wrongPath')
+  })
+
+  it('grades a correct all-"no" run as correct', () => {
+    expect(gradeRun(with_({}), allNo()).verdict).toBe('correct')
+  })
+
+  it('marks answers after the decisive step as not graded', () => {
+    const r = gradeRun(with_({ ambulatory: true, respondsPurposefully: false }), allNo())
+    expect(r.decisiveStep).toBe('ambulatory')
+    expect(r.stepResults.map((s) => s.afterDecisiveStep)).toEqual([
+      false, false, true, true, true, true, true, true, true,
+    ])
+    expect(r.stepResults[8]?.errorType).toBe('missed')
+  })
+
+  it('marks no answer as after the decisive step when there is none', () => {
+    const r = gradeRun(with_({}), allNo())
+    expect(r.stepResults.every((s) => !s.afterDecisiveStep)).toBe(true)
   })
 
   it.each([

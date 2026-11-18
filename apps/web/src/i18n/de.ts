@@ -47,11 +47,17 @@ export const de = {
   result: {
     headerTitle: 'Ergebnis VOR-Sichtung',
     correct: '✓ Korrekt eingestuft',
+    wrongPath: '≈ Kategorie richtig, Weg falsch',
+    wrongPathHint:
+      'Die Einstufung stimmt, aber du hast nicht beim entscheidenden Schritt angehalten. Im Algorithmus zählt die Reihenfolge.',
     wrong: '✗ Falsch eingestuft',
+    decisiveStep: 'Entscheidender Schritt',
+    noDecisiveStep: 'keiner, alle neun Fragen sind mit Nein zu beantworten',
     yourCategory: 'Deine Einstufung',
     correctCategory: 'Korrekte Einstufung',
     reasoning: 'Begründung',
     errorsHeading: 'Fehler bei der Sichtung',
+    notGradedHeading: 'Nach dem entscheidenden Schritt (nicht gewertet)',
     errorYourAnswer: 'Deine Antwort',
     errorCorrectAnswer: 'Richtig',
     nextPatient: 'Nächster Patient →',
@@ -66,7 +72,9 @@ export const de = {
   summary: {
     badge: 'Auswertung',
     heading: 'VOR-Sichtung abgeschlossen',
-    patientsCorrect: 'Patienten korrekt eingestuft',
+    patientsCorrect: 'Patienten korrekt eingestuft (Kategorie und Weg)',
+    wrongPathCount: '{{count}} × Kategorie richtig, Weg falsch',
+    wrongPathLabel: 'Weg falsch',
     distributionLabel: 'SK-Verteilung (korrekt)',
     detailHeading: 'Ergebnisse im Detail',
     patientPrefix: 'Patient',
@@ -75,7 +83,7 @@ export const de = {
     retryButton: 'Nochmal üben',
     homeButton: 'Startseite',
     ratings: {
-      perfect: 'Hervorragend! Alle Patienten korrekt eingestuft.',
+      perfect: 'Hervorragend! Alle Patienten korrekt eingestuft, auf dem richtigen Weg.',
       good: 'Gutes Ergebnis! Einzelne Punkte solltest du noch vertiefen.',
       okay: 'Solide Basis, aber es gibt noch Verbesserungspotenzial.',
       needsPractice: 'Den Algorithmus solltest du noch intensiv üben. Wiederholung hilft!',

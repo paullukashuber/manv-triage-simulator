@@ -65,6 +65,35 @@ describe('TrainingRunner', () => {
     expect(screen.queryByRole('button', { name: 'Nochmal üben' })).not.toBeInTheDocument()
   })
 
+  it('shows "category right, path wrong" when an early yes hits the right category', async () => {
+    render(<TrainingRunner cases={[makeCase('1', { radialPulsePalpable: false })]} mode="session" onExit={vi.fn()} />)
+    await click('VOR-Sichtung beginnen')
+    await click('Ja')
+    expect(screen.getByText('≈ Kategorie richtig, Weg falsch')).toBeInTheDocument()
+    expect(screen.queryByText('✓ Korrekt eingestuft')).not.toBeInTheDocument()
+    expect(screen.getByText(/Entscheidender Schritt:/)).toHaveTextContent('Kein Radialispuls tastbar?')
+    await click('Zur Auswertung →')
+    expect(screen.getByText('0/1')).toBeInTheDocument()
+    expect(screen.getByText('1 × Kategorie richtig, Weg falsch')).toBeInTheDocument()
+  })
+
+  it('lists answers after the decisive step as not graded', async () => {
+    render(
+      <TrainingRunner
+        cases={[makeCase('1', { ambulatory: true, respondsPurposefully: false })]}
+        mode="session"
+        onExit={vi.fn()}
+      />,
+    )
+    await click('VOR-Sichtung beginnen')
+    for (let i = 0; i < 9; i++) await click('Nein')
+    expect(screen.getByText('✗ Falsch eingestuft')).toBeInTheDocument()
+    const notGraded = screen.getByRole('region', { name: 'Nach dem entscheidenden Schritt (nicht gewertet)' })
+    expect(notGraded).toHaveTextContent(/Keine gezielte Reaktion/)
+    const graded = screen.getByRole('region', { name: 'Fehler bei der Sichtung' })
+    expect(graded).not.toHaveTextContent(/Keine gezielte Reaktion/)
+  })
+
   it('classifies overcalled errors with learning field', async () => {
     render(<TrainingRunner cases={[makeCase('1')]} mode="session" onExit={vi.fn()} />)
     await click('VOR-Sichtung beginnen')
