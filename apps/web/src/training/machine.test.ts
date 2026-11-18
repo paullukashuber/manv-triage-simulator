@@ -19,7 +19,7 @@ describe('trainingReducer', () => {
     )
     expect(state.phase).toBe('result')
     expect(state.results).toHaveLength(1)
-    expect(state.results[0]?.grade.isCorrect).toBe(true)
+    expect(state.results[0]?.grade.verdict).toBe('correct')
     expect(state.results[0]?.grade.userCategory).toBe('white')
   })
 
@@ -55,7 +55,7 @@ describe('trainingReducer', () => {
     const state = run([makeCase('1')], [{ type: 'begin' }, ...nine])
     expect(state.phase).toBe('result')
     expect(state.results[0]?.grade.userCategory).toBe('yellow')
-    expect(state.results[0]?.grade.isCorrect).toBe(true)
+    expect(state.results[0]?.grade.verdict).toBe('correct')
   })
 
   it('stays in step phase after eight "no" answers', () => {

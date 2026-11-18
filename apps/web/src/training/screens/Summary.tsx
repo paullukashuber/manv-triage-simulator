@@ -1,4 +1,4 @@
-import { CATEGORIES } from '@manv/triage'
+import { CATEGORIES, type Verdict } from '@manv/triage'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/ui/Button.tsx'
 import { CategoryBadge } from '../../components/ui/CategoryBadge.tsx'
@@ -7,6 +7,12 @@ import { Header } from '../../components/ui/Header.tsx'
 import type { CaseResult } from '../machine.ts'
 
 type SummaryProps = { results: CaseResult[]; onRetry?: () => void; onHome: () => void }
+
+const VERDICT_ROW: Record<Verdict, { border: string; marker: string }> = {
+  correct: { border: 'border-l-correct', marker: '✓' },
+  wrongPath: { border: 'border-l-accent', marker: '≈' },
+  wrong: { border: 'border-l-wrong', marker: '✗' },
+}
 
 function ratingKey(percent: number) {
   if (percent === 100) return 'perfect'
@@ -18,7 +24,8 @@ function ratingKey(percent: number) {
 export function Summary({ results, onRetry, onHome }: SummaryProps) {
   const { t } = useTranslation()
   const total = results.length
-  const correct = results.filter((r) => r.grade.isCorrect).length
+  const correct = results.filter((r) => r.grade.verdict === 'correct').length
+  const wrongPath = results.filter((r) => r.grade.verdict === 'wrongPath').length
   const percent = total > 0 ? Math.round((correct / total) * 100) : 0
   const distribution = CATEGORIES.map((category) => ({
     category,
@@ -37,6 +44,9 @@ export function Summary({ results, onRetry, onHome }: SummaryProps) {
           <p className="text-[0.7rem] text-dim mt-1">
             {t('summary.patientsCorrect')} ({percent}%)
           </p>
+          {wrongPath > 0 && (
+            <p className="text-[0.7rem] text-accent mt-1">{t('summary.wrongPathCount', { count: wrongPath })}</p>
+          )}
         </div>
 
         <p className="text-[0.82rem] text-center text-muted">{t(`summary.ratings.${ratingKey(percent)}`)}</p>
@@ -60,18 +70,24 @@ export function Summary({ results, onRetry, onHome }: SummaryProps) {
             <li
               key={trainingCase.caseId}
               className={`px-3 py-2 rounded-lg bg-surface border-l-3 text-[0.8rem] leading-snug ${
-                grade.isCorrect ? 'border-l-correct' : 'border-l-wrong'
+                VERDICT_ROW[grade.verdict].border
               }`}
             >
               <p className="font-medium line-clamp-2">
-                {grade.isCorrect ? '✓' : '✗'} {t('summary.patientPrefix')} {i + 1}: {trainingCase.description}
+                {VERDICT_ROW[grade.verdict].marker} {t('summary.patientPrefix')} {i + 1}: {trainingCase.description}
               </p>
               <p className="text-dim mt-0.5 flex items-center gap-1 flex-wrap">
                 {t('summary.correctLabel')}: <CategoryBadge category={grade.correctCategory} size="sm" />
-                {!grade.isCorrect && (
+                {!grade.categoryCorrect && (
                   <>
                     {' · '}
                     {t('summary.yourAnswerLabel')}: <CategoryBadge category={grade.userCategory} size="sm" />
+                  </>
+                )}
+                {grade.verdict === 'wrongPath' && (
+                  <>
+                    {' · '}
+                    {t('summary.wrongPathLabel')}
                   </>
                 )}
               </p>

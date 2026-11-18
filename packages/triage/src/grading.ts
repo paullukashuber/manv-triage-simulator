@@ -22,12 +22,22 @@ export type StepResult = {
   correctAnswer: boolean
   isCorrect: boolean
   errorType: 'missed' | 'overcalled' | null
+  /** Answered after the decisive step was passed; shown to the learner but not graded. */
+  afterDecisiveStep: boolean
 }
+
+/**
+ * - `correct`: the learner stopped exactly at the decisive step (category and path right).
+ * - `wrongPath`: the category matches, but the learner stopped at another step.
+ * - `wrong`: the category does not match.
+ */
+export type Verdict = 'correct' | 'wrongPath' | 'wrong'
 
 export type GradeResult = {
   userCategory: Category
   correctCategory: Category
-  isCorrect: boolean
+  verdict: Verdict
+  categoryCorrect: boolean
   decisiveStep: StepKey | null
   stepResults: StepResult[]
   stoppedEarly: boolean
@@ -52,7 +62,10 @@ function validateRun(answers: RunAnswer[]): void {
 export function gradeRun(findings: Findings, answers: RunAnswer[]): GradeResult {
   validateRun(answers)
 
-  const stepResults = answers.map((a): StepResult => {
+  const correct = triage(findings)
+  const decisiveIndex = correct.decisiveStep === null ? -1 : STEP_KEYS.indexOf(correct.decisiveStep)
+
+  const stepResults = answers.map((a, index): StepResult => {
     const step = STEPS.find((s) => s.key === a.key)
     if (!step) throw new InvalidRunError(`Unknown step ${a.key}`)
     const correctAnswer = evaluateStep(a.key, findings)
@@ -63,23 +76,27 @@ export function gradeRun(findings: Findings, answers: RunAnswer[]): GradeResult 
       correctAnswer,
       isCorrect: a.answer === correctAnswer,
       errorType: a.answer === correctAnswer ? null : correctAnswer ? 'missed' : 'overcalled',
+      afterDecisiveStep: decisiveIndex >= 0 && index > decisiveIndex,
     }
   })
 
-  const correct = triage(findings)
   const lastIndex = answers.length - 1
   const stoppedAt = answers[lastIndex]?.answer ? lastIndex : -1
   const userCategory =
     stoppedAt >= 0 ? (STEPS[stoppedAt]?.resultIfYes ?? FALLBACK_CATEGORY) : FALLBACK_CATEGORY
 
-  const decisiveIndex = correct.decisiveStep === null ? -1 : STEP_KEYS.indexOf(correct.decisiveStep)
   const stoppedEarly = stoppedAt >= 0 && (decisiveIndex === -1 || stoppedAt < decisiveIndex)
   const passedDecisiveStep = decisiveIndex >= 0 && answers[decisiveIndex]?.answer === false
+
+  const categoryCorrect = userCategory === correct.category
+  const pathCorrect = stoppedAt === decisiveIndex
+  const verdict: Verdict = pathCorrect ? 'correct' : categoryCorrect ? 'wrongPath' : 'wrong'
 
   return {
     userCategory,
     correctCategory: correct.category,
-    isCorrect: userCategory === correct.category,
+    verdict,
+    categoryCorrect,
     decisiveStep: correct.decisiveStep,
     stepResults,
     stoppedEarly,

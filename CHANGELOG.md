@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Wertung nach Kategorie und Weg
+
+- Ein Fall gilt nur noch als korrekt, wenn Kategorie **und** Weg stimmen, also beim entscheidenden Schritt angehalten wurde. Bisher reichte die richtige Kategorie, sodass z. B. „Ja“ bei X jeden SK-1-Fall als korrekt wertete.
+- Neuer Zwischenzustand „Kategorie richtig, Weg falsch“ in Ergebnis und Auswertung, mit Hinweis auf den entscheidenden Schritt
+- Antworten nach dem entscheidenden Schritt werden als „nicht gewertet“ getrennt angezeigt
+
 ## [0.3.0] – 2026-11-17
 
 ### Rewrite: TypeScript-Monorepo mit API, Datenbank und Fall-Editor
