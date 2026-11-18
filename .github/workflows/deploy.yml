@@ -63,15 +63,12 @@ jobs:
             ${{ env.WEB_IMAGE }}:latest
             ${{ env.WEB_IMAGE }}:${{ github.sha }}
 
-      - name: Copy compose file and .env.example to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: deploy/docker-compose.yml,deploy/.env.example
-          target: ${{ env.DEPLOY_PATH }}
-          strip_components: 1
+      # The files travel base64-encoded inside the SSH session, so the deploy needs no SCP and no
+      # writable home directory on the server, only a writable DEPLOY_PATH.
+      - name: Encode compose file and .env.example
+        run: |
+          echo "COMPOSE_B64=$(base64 -w0 deploy/docker-compose.yml)" >> "$GITHUB_ENV"
+          echo "ENV_EXAMPLE_B64=$(base64 -w0 deploy/.env.example)" >> "$GITHUB_ENV"
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1
@@ -79,6 +76,21 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          envs: DEPLOY_PATH
+          envs: DEPLOY_PATH,COMPOSE_B64,ENV_EXAMPLE_B64
           script: |
-            cd "$DEPLOY_PATH" && docker compose pull && docker compose up -d --remove-orphans
+            set -eu
+            if [ ! -d "$DEPLOY_PATH" ] || [ ! -w "$DEPLOY_PATH" ]; then
+              echo "Fehler: $DEPLOY_PATH fehlt oder ist für $(id -un) nicht beschreibbar. Siehe deploy/README.md, Ersteinrichtung." >&2
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
+            printf '%s' "$COMPOSE_B64" | base64 -d > docker-compose.yml.new
+            mv docker-compose.yml.new docker-compose.yml
+            printf '%s' "$ENV_EXAMPLE_B64" | base64 -d > .env.example.new
+            mv .env.example.new .env.example
+            if [ ! -f .env ]; then
+              echo "Fehler: $DEPLOY_PATH/.env fehlt. docker-compose.yml und .env.example liegen jetzt dort; .env nach deploy/README.md, Ersteinrichtung, anlegen und den Workflow erneut starten." >&2
+              exit 1
+            fi
+            docker compose pull
+            docker compose up -d --remove-orphans

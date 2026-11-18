@@ -14,9 +14,10 @@ Er hat ein eigenes Verzeichnis, eigene Volumes und lauscht nur auf `127.0.0.1:30
 
 ## Ersteinrichtung
 
-1. Verzeichnis anlegen. `docker-compose.yml` und `.env.example` kopiert der Deploy-Workflow bei jedem Lauf
-   automatisch hierher. Vor dem allerersten Start also einmal den Workflow laufen lassen oder beide Dateien
-   aus `deploy/` im Repo von Hand kopieren:
+1. Verzeichnis anlegen, und zwar als der Benutzer aus dem Secret `SERVER_USER` (der Deploy-Workflow schreibt
+   mit diesem Benutzer hinein). `docker-compose.yml` und `.env.example` legt der Workflow bei jedem Lauf hier ab.
+   Vor dem allerersten Start also einmal den Workflow laufen lassen (er bricht dann mit dem Hinweis ab, dass
+   `.env` fehlt) oder beide Dateien aus `deploy/` im Repo von Hand kopieren:
 
    ```sh
    sudo mkdir -p /opt/manv-triage-app
@@ -289,8 +290,11 @@ Schritt 4 `$SITE.bak-auth`); siehe Schritt 6.
 ## Updates
 
 Jeder Push auf `main` startet den Workflow `Deploy to Server`: Tests, Images bauen und nach GHCR pushen,
-`docker-compose.yml` und `.env.example` per SCP nach `/opt/manv-triage-app` (Repository-Variable `DEPLOY_PATH` überschreibt den Pfad)
-kopieren, dann `docker compose pull && docker compose up -d --remove-orphans`.
+per SSH `docker-compose.yml` und `.env.example` nach `/opt/manv-triage-app` schreiben (Repository-Variable `DEPLOY_PATH`
+überschreibt den Pfad), dann `docker compose pull && docker compose up -d --remove-orphans`. Die Dateien gehen
+base64-kodiert in der SSH-Sitzung mit, es wird kein SCP und kein beschreibbares Home-Verzeichnis gebraucht.
+Fehlt das Verzeichnis, ist es für `SERVER_USER` nicht beschreibbar oder fehlt `.env`, bricht der Lauf mit einer
+deutschen Fehlermeldung ab.
 Benötigte Secrets: `SERVER_HOST`, `SERVER_USER`, `SERVER_SSH_KEY`.
 
 Manuell auf eine bestimmte Version zurück: `IMAGE_TAG=<commit-sha>` in `.env` setzen und `docker compose up -d`.
